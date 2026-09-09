@@ -23,7 +23,7 @@ Read from `apps/api/node_modules/*/package.json` and the repository root:
 | `@nestjs/cli` | 12.x | |
 | pnpm | 11.9.0 | `packageManager` field, root |
 | Node (`.nvmrc`) | 24.21.0 | root `engines.node` is `>=24.15.0` |
-| Node (this machine) | 26.4.0 | **mismatch with `.nvmrc`** — see Decision 8 |
+| Node (this machine) | 26.4.0 | **mismatch with `.nvmrc`**, and no version manager is installed — see Decision 8 |
 
 `apps/api` is ESM (`"type": "module"`) with `module`/`moduleResolution` set to `nodenext`, so
 every relative import must carry an explicit `.js` extension — the existing scaffold already does
@@ -144,10 +144,17 @@ now published directly with the package. v12.10.0 release notes record *"support
 prebuilds and remove EOL builds (Node.js v20, v23)"*. So both `.nvmrc`'s Node 24 and this
 machine's Node 26 are in scope.
 
-**Unverified**: that a `darwin-arm64` prebuild is actually fetched on this machine rather than
-falling back to a `node-gyp` source build. This is checked by task **T004** — the install must
-complete with no compiler invocation. If it does fall back, Xcode Command Line Tools are the
-documented prerequisite and go in the README.
+**Verified on install (T004, 2026-09-09)** — this was the one item left unverified at planning
+time, and it resolved better than assumed. `better-sqlite3@13.0.3` ships the binaries **inside the
+published tarball** (`node_modules/better-sqlite3/prebuilds/darwin-arm64.node`, alongside
+linux/win32/musl variants) and declares **no `install` or `postinstall` script at all**. Nothing is
+downloaded and nothing is compiled. It loaded and executed SQL on Node 26.4.0 with no `node-gyp`
+invocation, so **Xcode Command Line Tools are not a prerequisite** and the README says so.
+
+pnpm still prints `ERR_PNPM_IGNORED_BUILDS: better-sqlite3@13.0.3` because the package contains a
+`binding.gyp`; that warning is about a build that does not need to run. `pnpm-workspace.yaml`
+already carried a scaffold placeholder (`better-sqlite3: set this to true or false`) awaiting
+exactly this decision, and it is now answered `false` with the evidence recorded beside it.
 
 **Path resolution (FR-017)**: the anchor is the API application directory, derived from
 `import.meta.url` — `path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')` from
@@ -237,8 +244,15 @@ since response headers are a property of the live server.
 ### Decision 8 — Node version: document 24.21.0, verify on it
 
 **Decision**: The README documents Node **24.21.0** (the `.nvmrc` pin, an LTS line) as the
-supported version. Verification tasks run under `nvm use`, not under whatever Node happens to be
-active.
+supported version.
+
+**Implementation note (2026-09-09)**: verification could **not** be run on 24.21.0. This machine
+has no `nvm`/`fnm`/`volta`/`asdf`/`mise`, and the only Node present is Homebrew's 26.4.0 (both
+`/opt/homebrew/bin/node` and `/usr/local/bin/node` are 26.4.0; only `node@26` is installed). Every
+BE-01 result was therefore produced on **Node 26.4.0**, not on the pinned 24.21.0. Nothing
+observed suggests a problem — 26.4.0 satisfies `engines.node >=24.15.0` and `better-sqlite3` ships
+a Node 26-compatible N-API binary — but the pin remains unverified by execution, which strengthens
+the case for resolving Decision 8 rather than leaving `.nvmrc` and reality apart.
 
 **Finding**: this machine currently runs Node **v26.4.0** while `.nvmrc` says `24.21.0`. Both
 satisfy the root `engines.node: ">=24.15.0"`, and every selected dependency supports both, so this
