@@ -25,8 +25,6 @@ export class AuthController {
   ) {}
 
   @Post('login')
-  // Nest answers POST with 201 by default. Logging in creates no resource the
-  // client can address, so the contract is 200.
   @HttpCode(HttpStatus.OK)
   async login(
     @Body({ schema: loginSchema }) body: LoginBody,
@@ -34,16 +32,13 @@ export class AuthController {
   ): Promise<{ user: User }> {
     const user = await this.auth.verifyCredentials(body.email, body.password);
 
-    // One message for both "no such account" and "wrong password", from one code
-    // path, so the two responses cannot drift apart and start leaking which
-    // accounts exist.
     if (!user) throw new UnauthorizedException('Invalid email or password');
 
-    // Regenerate before attaching the user: a session identifier an attacker
-    // fixed on the client beforehand is discarded here rather than becoming an
-    // authenticated one. `regenerate` also replaces the object at
-    // `request.session`, so `userId` is assigned after it resolves -- writing to
-    // a reference captured earlier would leave the new session anonymous.
+    // Regenerate before attaching the user, so a session id fixed on the client
+    // beforehand cannot become an authenticated one. `regenerate` replaces the
+    // object at `request.session`, so `userId` must be assigned after it
+    // resolves -- writing to a reference captured earlier would leave the new
+    // session anonymous.
     await new Promise<void>((resolve, reject) =>
       request.session.regenerate((error) => (error ? reject(error) : resolve())),
     );
@@ -60,20 +55,17 @@ export class AuthController {
   @Get('me')
   @UseGuards(SessionAuthGuard)
   me(@Req() request: Request): { user: User } {
-    const user = this.auth.findById(request.session.userId!);
-
-    // The session named a user who no longer exists. Treated as unauthenticated
-    // rather than as a 500, since from the caller's side it is the same thing.
-    if (!user) throw new UnauthorizedException();
-
-    return { user };
+    return { user: request.authUser! };
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<void> {
-    // Not behind SessionAuthGuard on purpose: logging out of an already-expired
-    // session would then fail with 401, so a client could not safely call this
+  async logout(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    // Deliberately not behind SessionAuthGuard: logging out of an expired
+    // session would then fail with 401, so a client could not call it
     // unconditionally.
     if (request.session) {
       await new Promise<void>((resolve, reject) =>

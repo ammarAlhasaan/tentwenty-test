@@ -5,14 +5,9 @@ import type { Request } from 'express';
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /**
- * CSRF protection. A state-changing request that declares an origin other than
- * the configured frontend origin is refused before it reaches a handler.
- *
- * This works because `Origin` is a forbidden header name: page JavaScript
- * cannot set it, so a cross-site page cannot pass this check. Together with the
- * `SameSite=Lax` session cookie, which is not sent on cross-site unsafe methods
- * at all, it is the defence OWASP endorses for a JSON API behind a strict CORS
- * allowlist -- no token endpoint, and no change required in the frontend.
+ * CSRF protection: a state-changing request declaring an origin other than the
+ * configured frontend origin is refused before it reaches a handler. `Origin` is
+ * a forbidden header name, so page script cannot forge it.
  */
 @Injectable()
 export class OriginCheckGuard implements CanActivate {
@@ -26,10 +21,8 @@ export class OriginCheckGuard implements CanActivate {
 
     const origin = request.get('origin');
 
-    // A request with no `Origin` at all is allowed through: browsers always send
-    // it on cross-origin requests, so its absence means a non-browser client
-    // such as curl, which is not the threat CSRF describes. Refusing here would
-    // also make the documented manual verification impossible.
+    // A missing `Origin` is allowed: browsers always send it cross-origin, so its
+    // absence means a non-browser client, which CSRF does not describe.
     if (!origin) return true;
 
     if (origin !== this.config.getOrThrow<string>('FRONTEND_ORIGIN')) {
