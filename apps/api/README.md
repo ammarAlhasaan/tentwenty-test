@@ -60,6 +60,7 @@ and a message naming the offending variable — there are no silent fallbacks.
 | `FRONTEND_ORIGIN` | `http://localhost:3000` | The single browser origin allowed to call this API, with credentials. `http`/`https` only, and normalised to a bare origin — `http://localhost:3000/` and `https://example.com/path` become `http://localhost:3000` and `https://example.com`, because that is the form a browser sends in `Origin` |
 | `SESSION_SECRET` | a development value | Signs the session cookie. Left unset in `.env.example` so the development default applies. **In production it must be set** to a real secret of at least 32 characters, or startup aborts: `openssl rand -base64 48` |
 | `SESSION_TTL_HOURS` | `12` | Session lifetime in hours (1–720). The window slides — it is refreshed on every response, so an active user is not signed out mid-session |
+| `MAX_UPLOAD_BYTES` | `10485760` (10 MB) | Largest spreadsheet upload accepted. Enforced before the file is buffered, so an oversized upload costs nothing |
 
 `.env` is gitignored. `.env.example` is the tracked reference and holds no secrets.
 
@@ -148,7 +149,91 @@ keys are on.
 
 Each table is added by the feature that needs it, created with `CREATE TABLE IF NOT EXISTS` when
 that feature's module starts. There is no migration framework: **changing a column means deleting
-`data/margin.sqlite` and restarting.** Authentication owns `users` and `sessions`.
+`data/margin.sqlite` and restarting.**
+
+| Owner | Tables |
+|---|---|
+| Authentication | `users`, `sessions` |
+| Ingestion | `employees`, `salaries`, `projects`, `timesheet_entries`, `imports` |
+| Assumptions | `settings` |
+
+**Adding the assessment tables does not require deleting the database.** They are created
+alongside the authentication tables, never over them — verified by opening a database holding only
+`users` and `sessions` and confirming both survived with their rows intact.
+
+`salaries.amount` is `NOT NULL` and a blank cell is skipped rather than stored, so **"no row"
+means unknown and `0` means a genuine zero salary**. The two are treated differently everywhere.
+
+## The assessment API
+
+Full request and response contracts, with real captured responses, are in
+[`specs/004-assessment-backend/contracts/`](../../specs/004-assessment-backend/contracts/). Every
+endpoint below needs a session; `GET /health` and `/auth/*` are unchanged.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /imports/timesheet` | upload a timesheet workbook (multipart `file`) |
+| `POST /imports/salaries` | upload a salary overview (multipart `file`, optional `year`) |
+| `POST /imports/projects` | upload a project price list (multipart `file`) |
+| `POST /imports/sample` | load the three bundled sample workbooks in one call |
+| `GET /imports` | import history and what is loaded |
+| `GET /periods` | which years and months have data |
+| `GET /dashboard?year=&month=` | hours, billable hours, cost, revenue, margin, reconciliation |
+| `GET /projects?year=&month=` | project list for the period |
+| `GET /projects/:refCode` | one project's full picture — not period-filtered |
+| `GET /departments?year=&month=` | departments with their people nested |
+| `GET /productivity?year=&month=` | billable ÷ total hours per employee |
+| `GET /categories?year=&month=` | hours per category and the billable/internal split |
+| `GET /settings` · `PUT /settings` | the two changeable assumptions |
+
+### Sample data
+
+The three supplied workbooks are tracked at [`sample-data/`](sample-data/) so a clean checkout has
+them. Load all three with one request:
+
+```bash
+curl -b jar.txt -X POST http://localhost:4000/imports/sample
+```
+
+It reads those files and feeds them through the same parsing, validation and persistence used by
+an ordinary upload — there is no separate path. The one-click button in the UI is delivered by the
+frontend upload spec.
+
+### Assumptions the reviewer should know about
+
+Two are changeable at runtime through `PUT /settings`, with no restart:
+
+| Assumption | Default |
+|---|---|
+| Billable categories | `Projects`, `Enhancements`, `Hosting` — the three the brief names |
+| Monthly overhead | `0`, so the brief's self-check passes out of the box |
+
+Three are decisions this backend made where the brief was silent:
+
+- **`allocatedRevenue` is a reporting allocation, not revenue recognition.** A project has one
+  price and up to five months of hours, and the brief does not say how to split it. A period is
+  credited `price x (its hours on the project / the project's hours across every loaded period)` —
+  the same hour-share idea the brief itself uses for employee revenue share. The field is named
+  `allocatedRevenue` rather than `revenue` to keep that distinction visible, and `bookedRevenue`
+  (price by sales month) is reported alongside it. **Loading more hours for a project revises the
+  allocated revenue previously reported for earlier periods.** Project profitability keeps the
+  brief's exact formula, `(price − cost) / price`, and is unaffected.
+- **Unknown is never zero.** A missing salary leaves a direct rate unknown, which leaves that
+  month's indirect pool incomplete, which makes every allocated cost in that month partial. A
+  missing price leaves revenue unknown. In both cases profit and margin are withheld as `null`,
+  and a `completeness` block on every response says which inputs are partial and why.
+- **Arithmetic balance and dataset completeness are reported separately.** `reconciliation.balances`
+  says the cost model ties over the inputs that exist; `reconciliation.salariesComplete` says
+  whether those are all of them. A balanced reconciliation never implies a complete dataset.
+
+Margins and profitability are unbounded and often negative — they are never clamped. Undefined
+ratios are `null`, never `0`, `NaN` or `Infinity`.
+
+### The self-check
+
+With the sample data loaded and overhead at `0`, the full year reports total cost **AED
+2,400,000** — exactly total salaries — and every individual month reconciles to its own salary
+bill. See [the verification record](../../specs/004-assessment-backend/quickstart.md).
 
 ## Scripts
 

@@ -24,6 +24,13 @@ export const envSchema = z
       .default('http://localhost:3000'),
     SESSION_SECRET: z.string().min(32).default(DEVELOPMENT_SESSION_SECRET),
     SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(12),
+    // Enforced by multer before the upload is buffered, so an oversized file is
+    // refused without ever being held in memory.
+    MAX_UPLOAD_BYTES: z.coerce
+      .number()
+      .int()
+      .min(1024)
+      .default(10 * 1024 * 1024),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === 'production' && env.SESSION_SECRET === DEVELOPMENT_SESSION_SECRET) {
@@ -45,4 +52,10 @@ const appDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 export function resolveDatabaseFile(databasePath: string): string {
   return resolve(appDir, databasePath);
+}
+
+// The three supplied workbooks, tracked in the repository so a clean checkout
+// can load sample data. `appDir` resolves to apps/api from both src/ and dist/.
+export function resolveSampleDataFile(filename: string): string {
+  return resolve(appDir, 'sample-data', filename);
 }
