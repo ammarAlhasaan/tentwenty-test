@@ -58,8 +58,70 @@ and a message naming the offending variable — there are no silent fallbacks.
 | `PORT` | `4000` | Integer, 1–65535 |
 | `DATABASE_PATH` | `./data/margin.sqlite` | Relative paths resolve against `apps/api`, **not** the directory you started the process from |
 | `FRONTEND_ORIGIN` | `http://localhost:3000` | The single browser origin allowed to call this API, with credentials. `http`/`https` only, and normalised to a bare origin — `http://localhost:3000/` and `https://example.com/path` become `http://localhost:3000` and `https://example.com`, because that is the form a browser sends in `Origin` |
+| `SESSION_SECRET` | a development value | Signs the session cookie. Left unset in `.env.example` so the development default applies. **In production it must be set** to a real secret of at least 32 characters, or startup aborts: `openssl rand -base64 48` |
+| `SESSION_TTL_HOURS` | `12` | Session lifetime in hours (1–720). The window slides — it is refreshed on every response, so an active user is not signed out mid-session |
 
 `.env` is gitignored. `.env.example` is the tracked reference and holds no secrets.
+
+## Authentication
+
+Cookie-based, with sessions held server-side in SQLite. Sign in with the demo user:
+
+| | |
+|---|---|
+| email | `demo@tentwenty.local` |
+| password | `demo-password-2026` |
+
+These are a local convenience, not a secret. The user is created automatically on first start
+against an empty database, with its password hashed using Argon2id — there is no SQL to run and no
+seed command. It is **not** created when `NODE_ENV=production`.
+
+| Endpoint | Auth | Returns |
+|---|---|---|
+| `POST /auth/login` | public, rate-limited | `200` + `{ user: { id, email } }`, and sets the session cookie |
+| `GET /auth/me` | session required | `200` + `{ user: { id, email } }`, or `401` |
+| `POST /auth/logout` | public | `204`, always — safe to call with no session |
+| `GET /health` | public | unchanged |
+
+```bash
+curl -c jar.txt -X POST http://localhost:4000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}'
+```
+
+```bash
+curl -b jar.txt http://localhost:4000/auth/me
+```
+
+A wrong password and an unknown email return the same generic `401` — the API does not reveal which
+accounts exist. After 10 failed attempts in 15 minutes a client gets `429`; successful logins do not
+count against that allowance.
+
+### Sessions and the cookie
+
+The `sid` cookie carries only a signed session identifier — never the user's identity. It is
+`HttpOnly`, `SameSite=Lax`, has a 12-hour sliding expiry, and is marked `Secure` when
+`NODE_ENV=production`. Sessions live in the `sessions` table, so they survive an API restart, and
+logout deletes the row rather than only clearing the browser's copy.
+
+Note that with `Secure` set, a browser on plain HTTP is not sent the cookie at all — which is why it
+is conditional on the environment rather than always on.
+
+### Cross-origin and CSRF
+
+The frontend must send `credentials: 'include'` on every request. A state-changing request declaring
+an origin other than `FRONTEND_ORIGIN` is refused with `403` before it reaches a handler; combined
+with `SameSite=Lax`, that is the CSRF defence. There is no CSRF token to fetch or echo.
+
+### Protecting a new endpoint
+
+```ts
+@UseGuards(SessionAuthGuard)
+@Controller('projects')
+export class ProjectsController {}
+```
+
+The guard is not global, because `GET /health` stays public.
 
 ## Error responses
 
@@ -84,7 +146,9 @@ A single SQLite file via `better-sqlite3`, opened at startup and closed on shutd
 [`src/database/database.service.ts`](src/database/database.service.ts). WAL journaling and foreign
 keys are on.
 
-**This module creates no tables.** Each table is added by the feature that needs it.
+Each table is added by the feature that needs it, created with `CREATE TABLE IF NOT EXISTS` when
+that feature's module starts. There is no migration framework: **changing a column means deleting
+`data/margin.sqlite` and restarting.** Authentication owns `users` and `sessions`.
 
 ## Scripts
 

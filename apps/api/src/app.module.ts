@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller.js';
+import { AuthModule } from './auth/auth.module.js';
 import { HttpExceptionFilter } from './common/http-exception.filter.js';
+import { OriginCheckGuard } from './common/origin-check.guard.js';
 import { envSchema } from './config.js';
 import { DatabaseModule } from './database/database.module.js';
 
@@ -14,8 +16,15 @@ import { DatabaseModule } from './database/database.module.js';
       validationSchema: envSchema,
     }),
     DatabaseModule,
+    AuthModule,
   ],
   controllers: [AppController],
-  providers: [{ provide: APP_FILTER, useClass: HttpExceptionFilter }],
+  providers: [
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
+    // Global: it must run before any route-level guard, so a forged
+    // cross-origin request is refused without first revealing whether its
+    // session was valid.
+    { provide: APP_GUARD, useClass: OriginCheckGuard },
+  ],
 })
 export class AppModule {}
