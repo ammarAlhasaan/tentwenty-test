@@ -1,50 +1,142 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report
+- Version change: none (unversioned template) → 1.0.0
+- Modified principles: none (initial ratification; all template placeholders replaced)
+- Added sections:
+  - Core Principles I–VIII
+  - Repository Boundaries
+  - Development Workflow
+  - Governance
+- Removed sections: none
+- Templates reviewed for consistency:
+  - .specify/templates/plan-template.md — Constitution Check gate compatible, no edit needed
+  - .specify/templates/spec-template.md — compatible, no edit needed
+  - .specify/templates/tasks-template.md — compatible, no edit needed
+- Follow-up TODOs: none
+-->
+
+# TenTwenty Margin Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Simple, Conventional Code
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+Code MUST follow the standard conventions of the framework it lives in: NestJS modules,
+providers, controllers, pipes, and filters in `apps/api`; Next.js App Router conventions in
+`apps/web`. Where the framework documents a way to do something, that way is used. Custom
+mechanisms MUST NOT replace a documented framework feature.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+Rationale: an unfamiliar reader should be able to navigate the code using the framework's own
+documentation, with no project-specific vocabulary to learn first.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### II. No Speculative Structure
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+The repository MUST NOT contain generic repositories, base classes, service interfaces with a
+single implementation, dependency-injection indirection with one binding, empty folders, or
+barrel files that exist only to re-export. A folder, abstraction, dependency, or script is added
+only when a requirement in an approved spec calls for it.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+Rationale: structure added in advance of a requirement is structure that is never validated
+against a real need and must still be maintained.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### III. Comments Explain the Non-Obvious
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+Comments MUST explain why a non-obvious decision was made — a workaround, a domain rule, a
+deliberate deviation. Comments that restate what the code already says MUST NOT be written.
+Public behaviour that needs explanation is documented in the relevant `README.md`, not in a
+comment block.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+Rationale: comments that narrate the code go stale silently; comments that record intent stay
+useful.
+
+### IV. HTTP-Only Boundary (NON-NEGOTIABLE)
+
+`apps/web` and `apps/api` MUST communicate exclusively over HTTP. There MUST be no shared
+package, no shared TypeScript types, no shared validation schemas, and no shared runtime code
+between the two applications. A type needed on both sides is duplicated in each application.
+
+Rationale: the two applications are independently deployable and independently reviewable; a
+shared package would couple their release cycles and let backend refactors break the frontend
+build.
+
+### V. One Side Per Spec
+
+Every specification MUST target `apps/web` or `apps/api` exclusively. A spec that would require
+changes in both applications MUST be split into a backend spec and a frontend spec, with the
+backend spec landing first and defining the HTTP contract the frontend spec consumes.
+
+Rationale: keeps each spec independently reviewable and keeps the HTTP contract explicit rather
+than emergent.
+
+### VI. One Spec At A Time
+
+Exactly one spec is implemented at a time. Its implementation MUST be complete, verified, and
+reviewed before the next spec's implementation begins. Planning artifacts for a later spec MAY be
+written earlier; code for a later spec MUST NOT be.
+
+Rationale: partial work across several specs cannot be reviewed or verified as a whole, and
+placeholder code written for a future spec is written without that spec's requirements.
+
+### VII. Libraries That Remove Complexity
+
+A third-party dependency is added when it removes meaningful complexity that would otherwise be
+written and maintained by hand. Before adding one, its official documentation MUST be checked
+against the installed framework and Node versions. Dependency conflicts MUST NOT be suppressed
+with `--force`, `--legacy-peer-deps`, or equivalent; an unresolved conflict is reported and an
+alternative is proposed instead.
+
+Rationale: a suppressed peer-dependency conflict is an unverified runtime risk that surfaces
+later, in a harder place to diagnose.
+
+### VIII. Verified Results Only
+
+Only results actually produced by a command that was run MAY be reported. Install, build, lint,
+test, and manual endpoint checks MUST be executed before their outcome is stated. A check that
+was skipped, was inconclusive, or failed MUST be reported as such, with its output.
+
+Rationale: an unverified "passing" claim is worse than no claim, because it stops anyone else
+from looking.
+
+## Repository Boundaries
+
+- `apps/web` — Next.js frontend, port 3000. Presentation and interaction only.
+- `apps/api` — NestJS backend, port 4000. Calculation, validation, and persistence.
+- React Query owns all API data in the frontend. Zustand holds shared UI state only, and MUST NOT
+  duplicate API data.
+- Root scripts stay minimal (`dev`, `build`). The package manager is pnpm; it MUST NOT be changed
+  or supplemented without an amendment.
+- The application MUST run locally from a clean checkout with a documented command, requiring no
+  cloud account, API key, or paid service.
+
+## Development Workflow
+
+1. Amend the constitution first when a governing rule changes.
+2. `/speckit-specify` — write the specification: user-visible behaviour, requirements, acceptance
+   criteria. No implementation detail.
+3. `/speckit-plan` — record the technical approach, verified dependency research with official
+   documentation links, and the Constitution Check.
+4. `/speckit-tasks` — produce dependency-ordered, actionable tasks including explicit verification
+   tasks.
+5. Human review of the artifacts before any implementation begins.
+6. `/speckit-implement` — implement, then run the verification tasks and report their real output.
+
+Template sections that do not apply to a given spec MUST be marked "Not applicable" with a short
+reason, rather than filled with invented work.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This constitution supersedes other working conventions in this repository. Where `AGENTS.md`,
+`CLAUDE.md`, or a README conflicts with it, this document wins and the other file is corrected.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+Amendments MUST be made by editing this file in its own change, stating the rationale, and
+bumping the version:
+
+- **MAJOR** — a principle is removed or redefined in a backward-incompatible way.
+- **MINOR** — a principle or section is added, or its guidance is materially expanded.
+- **PATCH** — wording, clarification, or typo fixes that do not change meaning.
+
+Every spec's plan MUST include a Constitution Check. A deviation is allowed only when it is
+recorded in that plan's Complexity Tracking table with the simpler alternative that was rejected
+and why. An unrecorded deviation is a defect and blocks review.
+
+**Version**: 1.0.0 | **Ratified**: 2026-09-09 | **Last Amended**: 2026-09-09
