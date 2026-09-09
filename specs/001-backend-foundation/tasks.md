@@ -107,8 +107,7 @@ checkout. This is the MVP.
 **Goal**: Rejected input, known errors, and unexpected errors all return the identical field set,
 with correct statuses and no leaked internals.
 
-**Independent Test**: Exercise all three error classes against the filter in isolation and compare
-their response bodies field by field.
+**Manual verification**: Check the reachable error responses using quickstart § 8. Full automated error-path coverage is deferred.
 
 ### Tests for User Story 3
 
@@ -124,7 +123,7 @@ their response bodies field by field.
 - [~] ~~T022~~ **REMOVED (file deleted 2026-09-09).** Was: [US3] Add a case to `apps/api/src/common/http-exception.filter.spec.ts` proving the pipe's output feeds the shape correctly: construct the exception `StandardSchemaValidationPipe` produces for a failing Zod schema, pass it to the filter, and assert 400 with one `message` entry per failed field, each prefixed with its path (spec FR-009). No route is added.
 
 **Checkpoint**: The HTTP error contract that BE-02, BE-03, and `apps/web` all depend on is fixed
-and tested.
+and ready for manual verification.
 
 ---
 
@@ -177,7 +176,7 @@ was inconclusive, or failed is reported as such, with its output.
 - [X] T034 Valid configuration and defaults: run quickstart § 3's no-`.env` case; confirm the API starts on 4000 using schema defaults (spec US-2 scenarios 3–4).
 - [X] T035 CORS: run all three quickstart § 4 commands. Confirm the allowed origin is echoed with `access-control-allow-credentials: true`, the disallowed origin gets **no** `access-control-allow-origin` header at all, and the preflight succeeds (spec SC-009). If the header is present with the configured value on the disallowed-origin request, the origin was passed as a string instead of an array — fix T028 rather than relaxing this expectation.
 - [X] T036 Database path resolution: run quickstart § 5 from the repository root and from `apps/api`; confirm exactly one `.sqlite` file exists, under `apps/api/data/` in both cases (spec SC-008).
-- [X] T037 Persistence across restart: run quickstart § 6's write → restart → read using the ad-hoc `_probe` scratch table, then drop it. Confirm the value survives (spec SC-007). The scratch table MUST NOT be added to application source. This is a coarse end-to-end check on the real file; T027a is the test that actually covers the service's own behaviour.
+- [X] T037 Persistence across restart: run quickstart § 6's write → restart → read using the ad-hoc `_probe` scratch table, then drop it. Confirm the value survives (spec SC-007). The scratch table MUST NOT be added to application source. This is a coarse end-to-end check on the real file; direct automated service coverage is deferred until the final backend testing stage.
 - [X] T038 Clean shutdown: run quickstart § 7 — SIGINT the process and confirm no `-wal` / `-shm` sidecar files remain in `apps/api/data/` (spec FR-020).
 - [X] T039 ~~Automated tests~~ **REMOVED.** There is no test suite and no `test` script. Replaced by: `cd apps/api && npx tsc --noEmit -p tsconfig.json` must exit 0, and no test/debug route exists in the application.
 - [X] T040 Lint: `pnpm --filter api lint` passes. With the suite gone, this and `tsc --noEmit` are the only automated gates — the error-shape and CORS checks in quickstart § 3 and § 4 must be re-run by hand after any change to `config.ts`, `common/http-exception.filter.ts` or `main.ts`.
@@ -231,12 +230,7 @@ touching the same file are **not** marked `[P]` and must be applied in task orde
 
 - Phase 1: T002 and T003 are separate installs but share one lockfile — run them sequentially.
 - Phase 3: T010, T011, T012 are three separate documentation files — fully parallel.
-- Phase 4: T013 and T015 both write `config.spec.ts`; T015 is marked `[P]` only relative to other
-  phases, not to T013 — apply T013 first.
-- Phase 5: T016 (the spec file) is parallel with T017 (the filter), since they are different
-  files; T022 appends to T016's file and follows it.
-- Across phases: once Phase 2 is complete, the documentation tasks (US1) and the filter tests
-  (US3 T016) can proceed alongside the database work (US4 T023, T025) — different files entirely.
+- Automated testing tasks are deferred until the final backend testing stage.
 
 ---
 
@@ -264,7 +258,7 @@ Task: "Add an API setup pointer to the root README.md"                    # T012
 ### Incremental delivery
 
 5. Phase 4 (US2) → configuration now fails loudly. Validate with quickstart § 3.
-6. Phase 5 (US3) → the error contract is fixed. Validate with `pnpm --filter api test`.
+6. Phase 5 (US3) → the error contract is fixed. Validate manually using quickstart § 8; automated coverage is deferred.
 7. Phase 6 (US4) → persistence exists. Validate with quickstart § 5, § 6, § 7.
 8. Phase 7 (US5) → the browser can call the API. Validate with quickstart § 4.
 9. Phase 8 → run every verification task and report actual output.

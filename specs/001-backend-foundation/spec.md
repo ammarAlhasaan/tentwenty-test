@@ -319,7 +319,11 @@ Explicitly excluded from BE-01. Each belongs to a later spec or to no spec at al
 ## Dependencies
 
 - BE-01 depends on no other spec. BE-02 and BE-03 both depend on BE-01.
-- The existing scaffold in `apps/api` (application module, health controller, build/start/test
+- The existing scaffold in `apps/api` (application module, health controller, build/start
   scripts) is the starting point and is preserved.
 - Third-party libraries required to satisfy these requirements are selected and version-verified
   during planning, not here.
+
+## Deferred backend tests
+
+Automated backend tests, their dependencies, configuration, and scripts are deferred until the end of backend implementation. Current verification uses TypeScript, lint, build, and manual API checks. Do not add test scaffolding in the intervening backend specs.

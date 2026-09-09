@@ -132,8 +132,8 @@ source (see data-model.md).
 
 > **Scope of this check.** It opens its *own* connection to a hard-coded path, so it proves SQLite
 > persists across a restart — it does **not** prove `DatabaseService` uses the configured file or
-> closes its handle. `apps/api/src/database/database.service.spec.ts` (task T027a) covers that by
-> driving the service directly against a temp file, and is run by § 8.
+> closes its handle. Direct automated coverage of the service is deferred until the final
+> backend testing stage.
 
 ```bash
 cd apps/api
