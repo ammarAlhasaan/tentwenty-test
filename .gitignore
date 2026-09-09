@@ -33,6 +33,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the example file is the tracked reference for local setup.
+!.env.example
 
 # vercel
 .vercel
@@ -46,4 +48,7 @@ next-env.d.ts
 apps/api/data/*.db
 apps/api/data/*.db-shm
 apps/api/data/*.db-wal
+apps/api/data/*.sqlite
+apps/api/data/*.sqlite-shm
+apps/api/data/*.sqlite-wal
 temp/*

@@ -16,6 +16,16 @@ Two independent applications in one repository. They share no code and communica
 pnpm install
 ```
 
+The API needs an environment file before its first run:
+
+```bash
+cp apps/api/.env.example apps/api/.env
+```
+
+Every setting has a working local default, so no edits are needed. See
+[apps/api/README.md](apps/api/README.md) for the full list, the error-response shape, and database
+details.
+
 ## Run
 
 ```bash

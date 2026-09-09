@@ -2,5 +2,9 @@ packages:
   - "apps/*"
 
 allowBuilds:
+  # Ships prebuilt N-API binaries (prebuilds/darwin-arm64.node) and declares no
+  # install/postinstall script, so there is nothing to build. Verified loading on
+  # Node 26.4.0 with no node-gyp invocation.
+  better-sqlite3: false
   sharp: false
   unrs-resolver: false
