@@ -57,7 +57,7 @@ and a message naming the offending variable — there are no silent fallbacks.
 | `NODE_ENV` | `development` | One of `development`, `test`, `production` |
 | `PORT` | `4000` | Integer, 1–65535 |
 | `DATABASE_PATH` | `./data/margin.sqlite` | Relative paths resolve against `apps/api`, **not** the directory you started the process from |
-| `FRONTEND_ORIGIN` | `http://localhost:3000` | The single browser origin allowed to call this API, with credentials |
+| `FRONTEND_ORIGIN` | `http://localhost:3000` | The single browser origin allowed to call this API, with credentials. `http`/`https` only, and normalised to a bare origin — `http://localhost:3000/` and `https://example.com/path` become `http://localhost:3000` and `https://example.com`, because that is the form a browser sends in `Origin` |
 
 `.env` is gitignored. `.env.example` is the tracked reference and holds no secrets.
 

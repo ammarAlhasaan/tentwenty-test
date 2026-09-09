@@ -203,6 +203,16 @@ verification step greps for exactly that. Only the array form produces that obse
 so the array form is what is specified — configuration, documentation, and verification now agree.
 `credentials: true` emits `Access-Control-Allow-Credentials: true` in both forms (FR-022, FR-023).
 
+**The matching is an exact string comparison**, which makes the *format* of the configured value
+part of this decision. `isOriginAllowed` reduces to `origin === allowedOrigin`, and a browser
+sends `Origin` as `scheme://host[:port]` with no trailing slash and no path. A plain `z.url()`
+accepts `http://localhost:3000/`, `https://example.com/path` and even `ftp://example.com` — all of
+which would start the app and then silently match no request. `FRONTEND_ORIGIN` is therefore
+restricted to `http`/`https` and normalised through `new URL(value).origin` in `config.ts`, so the
+configured value is always in the form the comparison will see. Verified end to end: with
+`FRONTEND_ORIGIN=http://localhost:3000/`, a request carrying `Origin: http://localhost:3000` comes
+back with `Access-Control-Allow-Origin: http://localhost:3000`.
+
 **Rationale**: `credentials: true` is required now, not in BE-02, because it is mutually exclusive
 with a wildcard origin — deciding it here is what makes BE-02's session cookie a no-op change to
 this file (FR-023).

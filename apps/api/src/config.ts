@@ -6,7 +6,16 @@ export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   DATABASE_PATH: z.string().min(1).default('./data/margin.sqlite'),
-  FRONTEND_ORIGIN: z.url().default('http://localhost:3000'),
+  // Normalised to a bare origin: browsers send `Origin` with no trailing slash
+  // and no path, so `http://localhost:3000/` would start fine and then match
+  // nothing in the CORS check.
+  FRONTEND_ORIGIN: z
+    .url({
+      protocol: /^https?$/,
+      error: 'Must be an http(s) origin, for example http://localhost:3000',
+    })
+    .transform((value) => new URL(value).origin)
+    .default('http://localhost:3000'),
 });
 
 export type Env = z.infer<typeof envSchema>;

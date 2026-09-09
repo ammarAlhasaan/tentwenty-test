@@ -46,6 +46,34 @@ describe('envSchema', () => {
     expect(issuePaths({ ...valid, FRONTEND_ORIGIN: 'notaurl' })).toEqual(['FRONTEND_ORIGIN']);
   });
 
+  // A browser sends `Origin` as scheme://host[:port] with no trailing slash and
+  // no path, so anything else has to be normalised or the CORS check silently
+  // matches nothing while the app starts happily.
+  it.each([
+    ['http://localhost:3000/', 'http://localhost:3000'],
+    ['http://localhost:3000', 'http://localhost:3000'],
+    ['https://example.com/path', 'https://example.com'],
+    ['https://example.com/path?q=1#x', 'https://example.com'],
+    ['https://example.com:8443/', 'https://example.com:8443'],
+  ])('normalises FRONTEND_ORIGIN %s to the bare origin %s', (input, expected) => {
+    expect(envSchema.parse({ ...valid, FRONTEND_ORIGIN: input }).FRONTEND_ORIGIN).toBe(expected);
+  });
+
+  it.each(['ftp://example.com', 'file:///tmp/x', 'ws://localhost:3000'])(
+    'rejects the non-http(s) origin %s',
+    (origin) => {
+      expect(issuePaths({ ...valid, FRONTEND_ORIGIN: origin })).toEqual(['FRONTEND_ORIGIN']);
+    },
+  );
+
+  it('explains what an acceptable origin looks like', () => {
+    const result = envSchema.safeParse({ ...valid, FRONTEND_ORIGIN: 'ftp://example.com' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toContain('http://localhost:3000');
+    }
+  });
+
   it('rejects a NODE_ENV outside the enum and names it', () => {
     expect(issuePaths({ ...valid, NODE_ENV: 'staging' })).toEqual(['NODE_ENV']);
   });

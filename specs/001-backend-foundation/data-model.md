@@ -32,7 +32,7 @@ The one "model" BE-01 defines. Validated by Zod at startup through
 | `NODE_ENV` | enum: `development` \| `test` \| `production` | no | `development` | Runtime environment name |
 | `PORT` | integer, coerced, 1–65535 | no | `4000` | API listen port |
 | `DATABASE_PATH` | non-empty string | no | `./data/margin.sqlite` | SQLite file. Relative paths resolve against `apps/api`, never `process.cwd()` |
-| `FRONTEND_ORIGIN` | URL string | no | `http://localhost:3000` | The single browser origin permitted by CORS, with credentials |
+| `FRONTEND_ORIGIN` | `http`/`https` URL, normalised to its bare origin | no | `http://localhost:3000` | The single browser origin permitted by CORS, with credentials |
 
 Notes:
 
@@ -42,6 +42,12 @@ Notes:
 - `PORT` uses `z.coerce.number()` because environment values are always strings.
 - A wildcard `FRONTEND_ORIGIN` is not accepted: `credentials: true` and `*` are mutually exclusive
   (spec FR-022).
+- `FRONTEND_ORIGIN` is restricted to `http`/`https` and normalised with `new URL(value).origin`
+  before use. A browser sends `Origin` as `scheme://host[:port]` — never with a trailing slash or
+  a path — so an un-normalised `http://localhost:3000/` would pass validation, start the app, and
+  then match nothing in the CORS check. Validating the *shape* of the value is not enough when the
+  comparison downstream is an exact string match; it has to be reduced to the same form the
+  browser will send. `https://example.com/path` is likewise trimmed to `https://example.com`.
 - Nothing secret lives here yet. BE-02 adds `SESSION_SECRET`, which is why `.env` is gitignored
   from the start.
 
