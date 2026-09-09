@@ -25,6 +25,7 @@ export type Entry = {
   designation: string | null;
   category: string;
   refCode: string;
+  taskName: string | null;
   companyName: string | null;
   hours: number;
 };
@@ -59,13 +60,19 @@ export type MonthModel = {
   month: number;
   /** null where the employee's salary is unknown -- never 0, which is a real salary. */
   directRates: Map<string, number | null>;
+  /**
+   * pool / ALL billable hours that month -- the assessment's denominator,
+   * unchanged. Narrowing it to employees with a known salary would make
+   * colleagues absorb a missing person's share purely to force the
+   * reconciliation to balance, which is a different cost model.
+   */
   indirectRate: number | null;
   pool: number;
   knownSalaries: number;
   overhead: number;
-  /** Hours behind the indirect rate: employees with a known salary only. */
-  costedBillableHours: number;
   billableHours: number;
+  /** Billable hours whose direct rate is unknown, so their cost cannot be computed. */
+  uncostedBillableHours: number;
   /**
    * False when an employee logged hours in this month with no salary on record.
    * Their non-billable time is missing from the pool, so the indirect rate is
@@ -146,23 +153,25 @@ export function buildMonthModels(
     }
 
     let billableHours = 0;
-    let costedBillableHours = 0;
+    let uncostedBillableHours = 0;
     for (const entry of bucket.entries) {
       if (!isBillable(entry.category, assumptions)) continue;
       billableHours += entry.hours;
-      if (directRates.get(entry.employeeNo) !== null) costedBillableHours += entry.hours;
+      // These hours still belong in the denominator; what is unknown is the
+      // direct rate to add to the indirect one, not the hours themselves.
+      if (directRates.get(entry.employeeNo) == null) uncostedBillableHours += entry.hours;
     }
 
     models.set(key, {
       year: bucket.year,
       month: bucket.month,
       directRates,
-      indirectRate: costedBillableHours > 0 ? pool / costedBillableHours : null,
+      indirectRate: billableHours > 0 ? pool / billableHours : null,
       pool,
       knownSalaries,
       overhead: assumptions.monthlyOverhead,
-      costedBillableHours,
       billableHours,
+      uncostedBillableHours,
       poolComplete: missingSalaryEmployees.length === 0,
       missingSalaryEmployees: [...new Set(missingSalaryEmployees)],
     });
@@ -178,6 +187,17 @@ export function entryCost(entry: Entry, model: MonthModel | undefined): number |
   if (direct === null || direct === undefined) return null;
   if (model.indirectRate === null) return null;
   return entry.hours * (direct + model.indirectRate);
+}
+
+/**
+ * The share of the indirect pool that landed on billable hours whose direct
+ * rate is unknown. Those rows have no employee cost, so this much of the pool
+ * is real but attributable to nobody -- reported rather than absorbed by the
+ * employees whose salaries happen to be on record.
+ */
+export function uncostedIndirect(model: MonthModel): number {
+  if (model.indirectRate === null) return 0;
+  return model.indirectRate * model.uncostedBillableHours;
 }
 
 /** Salary cost of any row, billable or not -- what the time cost to employ. */

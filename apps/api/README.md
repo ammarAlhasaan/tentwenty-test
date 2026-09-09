@@ -218,10 +218,18 @@ Three are decisions this backend made where the brief was silent:
   (price by sales month) is reported alongside it. **Loading more hours for a project revises the
   allocated revenue previously reported for earlier periods.** Project profitability keeps the
   brief's exact formula, `(price − cost) / price`, and is unaffected.
-- **Unknown is never zero.** A missing salary leaves a direct rate unknown, which leaves that
-  month's indirect pool incomplete, which makes every allocated cost in that month partial. A
-  missing price leaves revenue unknown. In both cases profit and margin are withheld as `null`,
-  and a `completeness` block on every response says which inputs are partial and why.
+- **Unknown is never zero, and the formula is never bent to hide it.** A missing salary leaves a
+  direct rate unknown, which leaves that month's indirect pool incomplete, which makes every
+  allocated cost in that month partial. The indirect rate still divides the pool by **all**
+  billable hours, as the brief specifies — narrowing the denominator to people with a salary on
+  record would make their colleagues absorb the missing share just to make the reconciliation
+  balance. The remainder is reported as `reconciliation.uncostedIndirectCost` instead. A missing
+  price leaves revenue unknown. In every case profit, margin and profitability are withheld as
+  `null`, each month, department, employee and project carries its own `costComplete`, and a
+  `completeness` block says which inputs are partial and why.
+- **A project with hours but no price is shown, not hidden.** It appears in the project list with
+  `priced: false`, takes its name from the imported data, opens its detail view normally, and
+  carries a warning. Only internal categories are excluded from the list.
 - **Arithmetic balance and dataset completeness are reported separately.** `reconciliation.balances`
   says the cost model ties over the inputs that exist; `reconciliation.salariesComplete` says
   whether those are all of them. A balanced reconciliation never implies a complete dataset.

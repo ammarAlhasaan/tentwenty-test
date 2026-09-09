@@ -178,16 +178,32 @@ any hour-share allocation and is stated rather than hidden.
 | `expectedCost` | `knownSalaries + overhead` |
 | `allocatedCost` | cost attached to billable hours |
 | `unallocatedCost` | pool that no project could carry, because a month had no billable hours |
-| `difference` | `allocatedCost + unallocatedCost - expectedCost` |
+| `uncostedIndirectCost` | pool that fell on billable hours whose direct rate is unknown — real cost belonging to nobody we can name |
+| `difference` | `allocatedCost + unallocatedCost + uncostedIndirectCost - expectedCost` |
 | `balances` | `abs(difference) < 0.005` — "equal to the dirham". **Arithmetic only** |
 | `salariesComplete` | whether every employee with hours has a salary. **Completeness, not arithmetic** |
 | `employeeMonthsMissingSalary` | how many employee-months have none |
-| `billableHours` / `billableHoursCosted` | all billable hours, and the subset behind the indirect rate |
+| `billableHours` | all billable hours — **this is the indirect rate's denominator**, per the assessment |
+| `billableHoursUncosted` | the subset whose direct rate is unknown, so no employee cost could be computed |
 
 `balances: true` with `salariesComplete: false` is a real and important state: the arithmetic ties
-over the inputs that exist, and the dataset is still incomplete. Observed with one salary removed
-from March — `knownSalaries` 172,000, `balances` true, `salariesComplete` false, `profit` and
-`margin` `null`.
+over the inputs that exist, and the dataset is still incomplete.
+
+Observed with Ayesha Rahman's March salary removed — she has 139.7 billable hours that month:
+
+```
+knownSalaries          179000
+allocatedCost          170471.11
+uncostedIndirectCost     8528.89
+difference                    0     balances true
+salariesComplete          false
+billableHours            1230.7     <- unchanged: the full denominator
+billableHoursUncosted     139.7     <- hers, still in the denominator
+completeness.cost       partial     profit and margin null
+```
+
+Her hours stay in the denominator, so nobody else's rate is inflated to cover her. The
+AED 8,528.89 of pool that landed on them is reported rather than absorbed.
 
 ---
 
@@ -282,8 +298,35 @@ period, plus every project priced in the period, sorted by period hours.
   across all loaded periods that fell in this period — exactly the fraction of `price` applied.
 - The three `periodCost` values sum to AED 197,000, March's entire salary bill, because these are
   the only projects with billable hours that month.
-- A project with no usable price reports `price`, `periodAllocatedRevenue`, `periodProfit` and
-  `periodMargin` as `null`, and the response's `completeness.revenue` becomes `partial`.
+### Unpriced projects appear in the list
+
+**List membership is decided by the row's category, not by whether a price exists.** A ref code
+with billable hours and no price row is precisely the gap the brief asks to be surfaced, so it is
+listed with `priced: false` and `price: null` — dropping it would hide the work and the warning
+together. What is excluded is internal categories (`FC - *`, `Tentwenty`).
+
+Such a project takes its name from the timesheet's task-name column, falls back to the ref code,
+and **its detail page opens normally** (`200`, not `404`). Observed:
+
+```json
+{
+  "refCode": "Q2025099z",
+  "name": "Orion-Portal-Redesign-COMMERCIAL.pdf",
+  "client": "Orion Labs",
+  "priced": false,
+  "price": null,
+  "periodHours": 100,
+  "periodCost": 197000,
+  "periodAllocatedRevenue": 0,
+  "periodMargin": null,
+  "costComplete": true
+}
+```
+
+with `completeness.revenue: "partial"` and a `project_without_price` issue naming it.
+
+- Every row carries `costComplete`, so a project whose hours fall partly in an incomplete month is
+  identifiable without reading the whole response.
 
 ---
 
@@ -408,7 +451,13 @@ month-by-month split is inside the response. Departments and employees abridged 
 | `totals.profitability` | `(price - cost) / price` — **the assessment's project profitability, exactly**, unaffected by period allocation |
 | `employees[].cost` | `sum over months of hours x (direct rate + that month's indirect rate)` |
 | `employees[].revenueShare` | `price x (employee hours / project total hours)`; `null` without a usable price |
-| `employees[].profitability` | `(revenueShare - cost) / revenueShare`; unbounded and never clamped |
+| `employees[].profitability` | `(revenueShare - cost) / revenueShare`; unbounded and never clamped; **`null` whenever that employee's `costComplete` is false** |
+
+`months[]`, `departments[]` and `employees[]` each carry their own `costComplete`. A missing salary
+anywhere in a month understates the indirect rate for **everyone** in it, so an employee whose own
+salary is on record still reports `profitability: null` when they worked that month. Observed with
+March incomplete: `Rohit Menon` keeps a cost of 36,829.09 with `profitability: null`, while the
+project's April–July months stay `costComplete: true` with real figures.
 
 **Invariants, all confirmed against the running API:**
 

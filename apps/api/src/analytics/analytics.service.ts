@@ -10,6 +10,7 @@ import {
   buildMonthModels,
   entryCost,
   entryDirectCost,
+  uncostedIndirect,
   isBillable,
   monthKey,
   ratio,
@@ -108,28 +109,36 @@ export class AnalyticsService {
       byRef.set(entry.refCode, [...(byRef.get(entry.refCode) ?? []), entry]);
     }
 
+    // Membership is decided by the CATEGORY, not by whether a price exists. A
+    // billable ref with hours and no price is exactly the gap the brief asks us
+    // to surface, so it belongs in the list with price null -- dropping it would
+    // hide the work and the warning together. Internal categories are what gets
+    // excluded.
     const refCodes = new Set<string>([
-      ...[...byRef.keys()].filter((ref) => context.projects.has(ref)),
+      ...[...byRef.entries()]
+        .filter(([, rows]) => rows.some((row) => isBillable(row.category, context.assumptions)))
+        .map(([ref]) => ref),
       ...[...context.projects.values()]
         .filter((p) => p.salesYear === scope.year && (scope.month === null || p.salesMonth === scope.month))
         .map((p) => p.refCode),
     ]);
 
     const projects = [...refCodes].map((refCode) => {
-      const project = context.projects.get(refCode)!;
+      const project = context.projects.get(refCode) ?? null;
       const rows = byRef.get(refCode) ?? [];
       const totals = this.totalsFor(context, rows);
       const lifetime = context.lifetimeHours.get(refCode) ?? 0;
 
       return {
         refCode,
-        name: project.name,
+        name: displayName(project, rows, refCode),
         client: clientOf(rows),
-        category: project.category,
-        status: project.status,
-        price: round2(project.price),
+        category: project?.category ?? rows[0]?.category ?? null,
+        status: project?.status ?? null,
+        priced: project !== null && project.price !== null && project.price > 0,
+        price: round2(project?.price ?? null),
         salesMonth:
-          project.salesYear === null || project.salesMonth === null
+          project?.salesYear == null || project?.salesMonth == null
             ? null
             : {
                 year: project.salesYear,
@@ -141,6 +150,7 @@ export class AnalyticsService {
         periodAllocatedRevenue: round2(totals.allocatedRevenue),
         periodProfit: round2(totals.profit),
         periodMargin: round4(totals.margin),
+        costComplete: totals.costComplete,
         lifetimeHours: hours2(lifetime),
         lifetimeShareOfHours: round4(ratio(totals.totalHours, lifetime)),
       };
@@ -180,16 +190,9 @@ export class AnalyticsService {
     const lifetimeHours = rows.reduce((sum, r) => sum + r.hours, 0);
     const price = project?.price ?? null;
 
-    let cost = 0;
-    let costComplete = true;
-    for (const row of rows) {
-      const model = models.get(monthKey(row.year, row.month));
-      if (model && !model.poolComplete) costComplete = false;
-      if (!isBillable(row.category, assumptions)) continue;
-      const value = entryCost(row, model);
-      if (value === null) costComplete = false;
-      else cost += value;
-    }
+    const total = costOf(rows, models, assumptions);
+    const cost = total.cost ?? 0;
+    const costComplete = total.complete;
 
     const revenueComplete = price !== null && price > 0;
     const complete = costComplete && revenueComplete;
@@ -200,47 +203,49 @@ export class AnalyticsService {
       .map((m) => {
         const monthRows = rows.filter((r) => r.year === m.year && r.month === m.month);
         const hours = monthRows.reduce((sum, r) => sum + r.hours, 0);
-        const model = models.get(monthKey(m.year, m.month));
-        let monthCost: number | null = 0;
-        for (const row of monthRows) {
-          if (!isBillable(row.category, assumptions)) continue;
-          const value = entryCost(row, model);
-          if (value === null) monthCost = null;
-          else if (monthCost !== null) monthCost += value;
-        }
+        const monthCost = costOf(monthRows, models, assumptions);
         return {
           year: m.year,
           month: m.month,
           label: monthLabel(m.year, m.month),
-          hours: round2(hours),
-          cost: round2(monthCost),
+          hours: hours2(hours),
+          cost: round2(monthCost.cost),
+          costComplete: monthCost.complete,
           allocatedRevenue: round2(allocate(price, hours, lifetimeHours)),
         };
       });
 
-    const departments = groupBy(rows, (r) => r.department).map(([department, group]) => ({
-      department,
-      hours: hours2(sum(group, (r) => r.hours)),
-      cost: round2(costOf(group, models, assumptions)),
-      shareOfHours: round4(ratio(sum(group, (r) => r.hours), lifetimeHours)),
-    }));
+    const departments = groupBy(rows, (r) => r.department).map(([department, group]) => {
+      const groupCost = costOf(group, models, assumptions);
+      return {
+        department,
+        hours: hours2(sum(group, (r) => r.hours)),
+        cost: round2(groupCost.cost),
+        costComplete: groupCost.complete,
+        shareOfHours: round4(ratio(sum(group, (r) => r.hours), lifetimeHours)),
+      };
+    });
 
     const employees = groupBy(rows, (r) => r.employeeNo).map(([employeeNo, group]) => {
       const hours = sum(group, (r) => r.hours);
       const employeeCost = costOf(group, models, assumptions);
       const revenueShare = allocate(price, hours, lifetimeHours);
+      // Withheld whenever this person's cost is partial -- including when the
+      // gap is somebody else's missing salary in a month they both worked.
+      const showProfitability =
+        employeeCost.complete && employeeCost.cost !== null && revenueShare !== null;
       return {
         employeeNo,
         name: group[0].employeeName,
         department: group[0].department,
         designation: group[0].designation,
         hours: hours2(hours),
-        cost: round2(employeeCost),
+        cost: round2(employeeCost.cost),
+        costComplete: employeeCost.complete,
         revenueShare: round2(revenueShare),
-        profitability:
-          revenueShare === null || employeeCost === null
-            ? null
-            : round4(ratio(revenueShare - employeeCost, revenueShare)),
+        profitability: showProfitability
+          ? round4(ratio(revenueShare - employeeCost.cost!, revenueShare))
+          : null,
       };
     });
 
@@ -262,11 +267,12 @@ export class AnalyticsService {
 
     return {
       refCode,
-      name: project?.name ?? refCode,
+      name: displayName(project, rows, refCode),
       client: clientOf(rows),
       category: project?.category ?? null,
       status: project?.status ?? null,
       currency: CURRENCY,
+      priced: revenueComplete,
       price: round2(price),
       salesMonth:
         project?.salesYear == null || project?.salesMonth == null
@@ -278,7 +284,8 @@ export class AnalyticsService {
             },
       totals: {
         hours: hours2(lifetimeHours),
-        cost: round2(cost),
+        cost: round2(total.cost),
+        costComplete,
         profit: round2(profit),
         // The assessment's project profitability, exactly: (price - cost) / price.
         profitability: complete && price !== null ? round4(ratio(price - cost, price)) : null,
@@ -309,7 +316,9 @@ export class AnalyticsService {
           billableHours: hours2(employeeTotals.billableHours),
           productivity: round4(ratio(employeeTotals.billableHours, employeeTotals.totalHours)),
           cost: round2(employeeTotals.cost),
+          costComplete: employeeTotals.costComplete,
           allocatedRevenue: round2(employeeTotals.allocatedRevenue),
+          revenueComplete: employeeTotals.revenueComplete,
           profit: round2(employeeTotals.profit),
           margin: round4(employeeTotals.margin),
         };
@@ -322,7 +331,9 @@ export class AnalyticsService {
         nonBillableHours: hours2(totals.totalHours - totals.billableHours),
         productivity: round4(ratio(totals.billableHours, totals.totalHours)),
         cost: round2(totals.cost),
+        costComplete: totals.costComplete,
         allocatedRevenue: round2(totals.allocatedRevenue),
+        revenueComplete: totals.revenueComplete,
         profit: round2(totals.profit),
         margin: round4(totals.margin),
         employees,
@@ -494,22 +505,39 @@ export class AnalyticsService {
     };
   }
 
+  /**
+   * Figures for a set of rows, with completeness judged on those rows rather
+   * than on the whole period -- so one department's gap does not withhold
+   * another's margin, and a gap anywhere in a month still withholds every
+   * group that touches that month.
+   */
   private totalsFor(context: Context, rows: Entry[]) {
     let totalHours = 0;
     let billableHours = 0;
     let cost = 0;
     let allocatedRevenue = 0;
+    let costComplete = true;
+    let revenueComplete = true;
 
     for (const row of rows) {
       totalHours += row.hours;
       const model = context.models.get(monthKey(row.year, row.month));
-
-      if (isBillable(row.category, context.assumptions)) {
-        billableHours += row.hours;
-        cost += entryCost(row, model) ?? 0;
-      }
+      if (!model || !model.poolComplete) costComplete = false;
 
       const project = context.projects.get(row.refCode);
+      const billable = isBillable(row.category, context.assumptions);
+
+      if (billable) {
+        billableHours += row.hours;
+        const value = entryCost(row, model);
+        if (value === null) costComplete = false;
+        else cost += value;
+
+        // Only billable work is expected to carry a price; an internal category
+        // without one is not a gap.
+        if (!project || project.price === null || project.price <= 0) revenueComplete = false;
+      }
+
       // Denominator is the project's hours across every loaded period, never the
       // filtered period -- otherwise each period is credited the whole price.
       const allocated = allocate(
@@ -520,14 +548,15 @@ export class AnalyticsService {
       if (allocated !== null) allocatedRevenue += allocated;
     }
 
-    const complete =
-      context.completeness.cost === 'complete' && context.completeness.revenue === 'complete';
+    const complete = costComplete && revenueComplete;
 
     return {
       totalHours,
       billableHours,
       cost,
+      costComplete,
       allocatedRevenue,
+      revenueComplete,
       // Withheld rather than shown as trustworthy when an input is missing.
       profit: complete ? allocatedRevenue - cost : null,
       margin: complete ? ratio(allocatedRevenue - cost, allocatedRevenue) : null,
@@ -539,17 +568,19 @@ export class AnalyticsService {
     let overhead = 0;
     let allocated = 0;
     let unallocated = 0;
+    let uncosted = 0;
     let missingSalaryMonths = 0;
     let billableHours = 0;
-    let costedBillableHours = 0;
+    let uncostedBillableHours = 0;
 
     for (const model of context.models.values()) {
       knownSalaries += model.knownSalaries;
       overhead += model.overhead;
       billableHours += model.billableHours;
-      costedBillableHours += model.costedBillableHours;
+      uncostedBillableHours += model.uncostedBillableHours;
       missingSalaryMonths += model.missingSalaryEmployees.length;
       if (model.indirectRate === null) unallocated += model.pool;
+      else uncosted += uncostedIndirect(model);
     }
 
     for (const row of context.entries) {
@@ -558,7 +589,7 @@ export class AnalyticsService {
     }
 
     const expected = knownSalaries + overhead;
-    const difference = allocated + unallocated - expected;
+    const difference = allocated + unallocated + uncosted - expected;
 
     return {
       knownSalaries: round2(knownSalaries),
@@ -566,13 +597,17 @@ export class AnalyticsService {
       expectedCost: round2(expected),
       allocatedCost: round2(allocated),
       unallocatedCost: round2(unallocated),
+      // Pool that fell on hours whose direct rate is unknown. Real cost that
+      // belongs to nobody we can name -- surfaced instead of being pushed onto
+      // the employees whose salaries happen to be on record.
+      uncostedIndirectCost: round2(uncosted),
       difference: round2(difference),
-      // Arithmetic only. Completeness is the separate flag below.
+      // Arithmetic only. Completeness is the two flags below.
       balances: Math.abs(difference) < BALANCE_TOLERANCE,
       salariesComplete: missingSalaryMonths === 0,
       employeeMonthsMissingSalary: missingSalaryMonths,
       billableHours: hours2(billableHours),
-      billableHoursCosted: hours2(costedBillableHours),
+      billableHoursUncosted: hours2(uncostedBillableHours),
     };
   }
 
@@ -594,19 +629,50 @@ function allocate(price: number | null, hours: number, lifetimeHours: number): n
   return price * (hours / lifetimeHours);
 }
 
+/**
+ * Cost of a set of rows and whether that cost is the whole story.
+ *
+ * A month with a missing salary has an understated indirect rate, so EVERY row
+ * in it is priced too low -- including rows belonging to people whose own
+ * salary is known. Completeness is therefore a property of the months a group
+ * touches, not only of the group's own employees.
+ */
 function costOf(
   rows: Entry[],
   models: Map<string, MonthModel>,
   assumptions: Assumptions,
-): number | null {
-  let total: number | null = 0;
+): { cost: number | null; complete: boolean } {
+  let cost: number | null = 0;
+  let complete = true;
+
   for (const row of rows) {
+    const model = models.get(monthKey(row.year, row.month));
+    if (!model || !model.poolComplete) complete = false;
     if (!isBillable(row.category, assumptions)) continue;
-    const value = entryCost(row, models.get(monthKey(row.year, row.month)));
-    if (value === null) total = null;
-    else if (total !== null) total += value;
+
+    const value = entryCost(row, model);
+    if (value === null) {
+      complete = false;
+      cost = null;
+    } else if (cost !== null) {
+      cost += value;
+    }
   }
-  return total;
+
+  return { cost, complete };
+}
+
+/**
+ * A project with no price row still has a name in the timesheet: the task-name
+ * column. Falling back to it, then to the ref code, is what lets an unpriced
+ * project stay visible and openable.
+ */
+function displayName(
+  project: ProjectRecord | null,
+  rows: Entry[],
+  refCode: string,
+): string {
+  return project?.name ?? rows.find((row) => row.taskName !== null)?.taskName ?? refCode;
 }
 
 /** The billable rows carry the client on the company-name column. */

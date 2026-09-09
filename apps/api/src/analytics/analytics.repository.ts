@@ -16,7 +16,7 @@ export class AnalyticsRepository {
       .prepare(
         `SELECT year, month, employee_no AS employeeNo, employee_name AS employeeName,
                 type_of_expense AS typeOfExpense, department, designation, category,
-                ref_code AS refCode, company_name AS companyName, hours
+                ref_code AS refCode, task_name AS taskName, company_name AS companyName, hours
          FROM timesheet_entries
          WHERE year = ? AND (? IS NULL OR month = ?)`,
       )
@@ -28,7 +28,7 @@ export class AnalyticsRepository {
       .prepare(
         `SELECT year, month, employee_no AS employeeNo, employee_name AS employeeName,
                 type_of_expense AS typeOfExpense, department, designation, category,
-                ref_code AS refCode, company_name AS companyName, hours
+                ref_code AS refCode, task_name AS taskName, company_name AS companyName, hours
          FROM timesheet_entries WHERE ref_code = ?`,
       )
       .all(refCode) as Entry[];
@@ -42,7 +42,7 @@ export class AnalyticsRepository {
       .prepare(
         `SELECT year, month, employee_no AS employeeNo, employee_name AS employeeName,
                 type_of_expense AS typeOfExpense, department, designation, category,
-                ref_code AS refCode, company_name AS companyName, hours
+                ref_code AS refCode, task_name AS taskName, company_name AS companyName, hours
          FROM timesheet_entries WHERE ${where}`,
       )
       .all(...months.flatMap((m) => [m.year, m.month])) as Entry[];

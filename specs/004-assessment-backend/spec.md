@@ -395,6 +395,15 @@ confirm they report the missing salary and price data rather than showing zeroes
   treated as having an incomplete indirect cost pool, and every allocated project cost in that
   month MUST be marked partial — a single missing salary affects the whole month's allocation, not
   only that person's rows.
+- **FR-035h**: The indirect cost rate's denominator MUST be **all** billable hours in the month, as
+  the assessment specifies. It MUST NOT be narrowed to the hours of employees whose salary is
+  known: that would make colleagues absorb a missing person's share of the pool in order to force
+  the reconciliation to balance. The pool that falls on hours with an unknown direct rate MUST be
+  reported as uncosted rather than redistributed.
+- **FR-035i**: Partial cost MUST propagate to every reported grouping — month, department, employee
+  and project — and each MUST expose its own completeness, so that a gap in one month does not
+  discredit figures from other months. Any profitability or margin derived from a partial cost MUST
+  be withheld, including for an employee whose own salary is known.
 - **FR-035d**: The system MUST report, separately from any figure, whether the cost inputs and the
   revenue inputs for the requested scope are complete or partial, and MUST name the reasons.
 - **FR-035e**: Where cost or revenue is partial, the system MUST withhold profit and margin —

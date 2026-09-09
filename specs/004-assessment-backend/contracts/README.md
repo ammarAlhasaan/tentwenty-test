@@ -72,16 +72,28 @@ Every calculated response carries:
 | `revenue` | `partial` when any project with billable hours in scope has no usable price |
 | `issues` | the specific reasons, recomputed on read — fixing a gap by uploading the missing data makes the issue disappear |
 
-Three consequences that the API guarantees:
+Four consequences that the API guarantees:
 
 1. **A partial `cost` or `revenue` figure is the known subtotal, never a complete one.** It is a
    real sum of the inputs that exist; it is not the whole answer. The flag is the only way to know
    which you are looking at.
-2. **`profit` and `margin` are withheld — `null` — whenever either input is partial.** A derived
-   figure built on incomplete inputs is never presented as though it were trustworthy.
+2. **`profit`, `margin` and `profitability` are withheld — `null` — whenever the inputs behind
+   them are partial.** A derived figure built on incomplete inputs is never presented as though it
+   were trustworthy.
 3. **One missing salary marks the whole month partial**, not just that person's rows. Their
    non-billable time is missing from the indirect cost pool, and the pool prices *every* project
-   row in that month.
+   row in that month, so a colleague whose own salary is on record still has an understated cost.
+4. **Completeness propagates to every level, and is reported at every level.** Each month,
+   department and employee row in a response carries its own `costComplete`, so a gap in one month
+   does not silently discredit the others. Observed: with March incomplete, a project's April to
+   July rows keep `costComplete: true` and real figures, while every March-touching employee —
+   including ones whose salaries are known — reports `profitability: null`.
+
+**The cost model's formula is never bent to make the arithmetic tie.** The indirect cost rate
+divides the pool by **all** billable hours that month, as the assessment specifies — not by the
+hours of employees who happen to have a salary on record. Narrowing that denominator would make
+colleagues absorb a missing person's share. Instead the unattributable remainder is reported as
+`reconciliation.uncostedIndirectCost`.
 
 ## Warning and issue codes
 

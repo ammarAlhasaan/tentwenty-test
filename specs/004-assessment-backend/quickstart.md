@@ -239,6 +239,59 @@ A salary workbook whose only column is `March` and whose cells are all blank:
 Scope came from the header column, not the values, so a correction can remove salaries as well as
 change them.
 
+## Q14a — The indirect rate keeps the assessment's denominator · PASS
+
+The check that a missing salary does not get quietly loaded onto colleagues. March, with **Ayesha
+Rahman's** salary removed — she has 139.7 billable hours that month, so this is the case a
+narrowed denominator would distort.
+
+| Field | Observed |
+| --- | ---: |
+| `billableHours` (the denominator) | **1,230.70** — unchanged, her hours still counted |
+| `billableHoursUncosted` | 139.70 |
+| `knownSalaries` | 179,000 |
+| `allocatedCost` | 170,471.11 |
+| `uncostedIndirectCost` | **8,528.89** |
+| `difference` | 0 · `balances` true |
+| `salariesComplete` | false · `completeness.cost` partial |
+| `profit` / `margin` | `null` |
+
+Nobody else's rate rose to cover her. The AED 8,528.89 of pool that landed on her hours is
+reported as unattributable, and the reconciliation still ties because that remainder is accounted
+for rather than hidden — `allocatedCost + uncostedIndirectCost = expectedCost`.
+
+## Q14b — Partial cost propagates to every grouping · PASS
+
+Same state (March incomplete). Checked at each level:
+
+| Level | Observed |
+| --- | --- |
+| `/departments?month=3` | all six departments `costComplete: false`, all `margin: null`, costs still reported as known subtotals |
+| Backend's employees | Imran Sheikh 25,402.96, Nadia Kapoor 20,606.47, Vikram Nair 18,034.07 — **all `margin: null`** although each has a salary on record |
+| `/projects/Q2025009b` months | March `costComplete: false`, cost `null`; **April 106,612.65, May 40,585.22, June 28,410.81, July 44,337.45 all `costComplete: true`** with real figures |
+| its employees | Ayesha `cost: null`; Rohit 36,829.09, Tariq 30,814.14, Grace 24,564.00 — costs present, **every `profitability: null`** |
+| its departments | Design `null`; Frontend 55,378.14, Backend 50,948.68, each `costComplete: false` |
+
+A colleague whose own salary is known still has their profitability withheld, because the month's
+indirect rate is understated for everyone in it. Months outside the gap keep their figures — the
+withholding is precise, not blanket.
+
+## Q14c — An unpriced project stays visible and openable · PASS
+
+A ref code `Q2025099z` with 100 billable hours and no price row:
+
+| Check | Observed |
+| --- | --- |
+| Appears in `GET /projects?year=2025&month=6` | yes — `priced: false`, `price: null` |
+| Name | `Orion-Portal-Redesign-COMMERCIAL.pdf`, taken from the timesheet's task-name column |
+| Client | `Orion Labs`, from the company column |
+| `GET /projects/Q2025099z` | **`200`**, opens normally |
+| Revenue fields | `periodAllocatedRevenue` 0, `periodMargin` `null`, every `revenueShare` and `profitability` `null` |
+| Flagging | import warning `project_without_price` (100.00 billable hours) and `completeness.revenue: "partial"` |
+| Internal categories | still excluded — January's list is `["Q2025001a"]`, no `FC - *`, no `Tentwenty` |
+
+Membership is decided by category, not by whether a price exists.
+
 ## Q14 — Missing salary vs genuine zero · PASS
 
 March, with Omar Zayed (00102, salary 25,000) omitted from the salary workbook:
@@ -350,6 +403,25 @@ unchanged at 4. A rejected upload writes no audit row.
 - `POST /imports/sample` loaded all three through the ordinary import service methods.
 
 ---
+
+## Q21 — No regression on the complete data · PASS
+
+Re-run after the three corrections, with the sample data restored:
+
+| Figure | Observed |
+| --- | ---: |
+| Year cost | 2,400,000 · `difference` 0 · `balances` true · `salariesComplete` true |
+| `uncostedIndirectCost` / `unallocatedCost` | 0 / 0 |
+| Hours / billable / productivity | 19,815.20 / 15,265.60 / 0.7704 |
+| Allocated revenue / margin | 5,012,000 / 0.5211 |
+| Each of the twelve months | cost = its salary bill, `difference` 0 |
+| `Q2025001a` | cost 468,776.21 · profitability 0.1629 · `costComplete` true · employee costs sum to 468,776.21 · revenue shares sum to 560,000.01 |
+| Ayesha on that project | 311.80 h / 50,586.14 / 57,717.84 / 0.1236 — identical to the hand-worked example |
+| Departments | cost 2,400,000 · revenue 5,012,000 · hours 19,815.20 |
+| Categories `totalDirectCost` | 2,399,999.99 |
+
+Every figure matches the pre-correction run exactly. The corrections change behaviour only where
+an input is missing.
 
 # Coverage audit
 
