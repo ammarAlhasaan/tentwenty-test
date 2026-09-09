@@ -69,6 +69,13 @@ handlers. The existing `app/providers.tsx` is already a client boundary and is r
 **Consequence**: the shell, the page content and the navigation *links* are server-rendered and
 readable before hydration; only the current-item highlight and the retry button need JavaScript.
 
+**Corrected after implementation**: the shadcn generator emits `components/ui/table.tsx` with
+`"use client"` at the top, so there are *three* client boundaries, not two. The file has no state,
+effect or handler, so the directive buys nothing here — but it was left exactly as generated
+(T008a permits only the `scope` change), because editing it would drift from what the next
+`shadcn add` produces. The table's markup is still server-rendered; only its hydration cost is
+affected.
+
 ## Decision 4 — Reuse the React Query provider unchanged; add no Zustand store
 
 **Decision**: `app/providers.tsx` stays exactly as it is. No store is created.

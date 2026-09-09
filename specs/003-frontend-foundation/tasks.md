@@ -23,12 +23,12 @@ any point in these tasks. Verification is T023 – T029.
 
 ## Phase 1: Setup
 
-- [ ] **T001** Confirm the working tree is the `003-frontend-foundation` worktree on branch
+- [x] **T001** Confirm the working tree is the `003-frontend-foundation` worktree on branch
   `003-frontend-foundation`, and that `git status` is clean apart from this spec directory and
   `.specify/`. Do not touch the `authentication` or `backend-foundation` worktrees.
-- [ ] **T002** Run `pnpm install --frozen-lockfile` from the repository root. If it fails because
+- [x] **T002** Run `pnpm install --frozen-lockfile` from the repository root. If it fails because
   the lockfile is out of date, stop and report — do not regenerate the lockfile (FR-024).
-- [ ] **T003** Record the pre-change baseline: `pnpm --filter web lint`, `pnpm --filter web exec tsc
+- [x] **T003** Record the pre-change baseline: `pnpm --filter web lint`, `pnpm --filter web exec tsc
   --noEmit`, `pnpm --filter web build`. Keep the output. A failure that already exists on `main` is
   not introduced by this spec, and knowing that later is worth two minutes now.
 
@@ -38,12 +38,12 @@ any point in these tasks. Verification is T023 – T029.
 
 Everything in Phase 3 onwards imports from this phase.
 
-- [ ] **T004** Add `--positive` and `--negative` to both `:root` and `.dark` in
+- [x] **T004** Add `--positive` and `--negative` to both `:root` and `.dark` in
   `apps/web/app/globals.css`, and surface them in the existing `@theme inline` block as
   `--color-positive` / `--color-negative`. Do not rename, remove or re-value any existing token —
   **with the single exception in T004a**. (FR-007, FR-008)
 
-- [ ] **T004a** Repair the broken sans font binding in the same `@theme inline` block — the one
+- [x] **T004a** Repair the broken sans font binding in the same `@theme inline` block — the one
   permitted change to an existing token, per research.md Decision 8:
 
   ```css
@@ -55,13 +55,13 @@ Everything in Phase 3 onwards imports from this phase.
   nothing and the document falls back to the browser default. Change these two lines and no others.
   After the change, confirm in devtools that `html` computes to Geist rather than a system font —
   without that check the fix is unverified. (FR-007)
-- [ ] **T005** Verify the two new colours against the surfaces they sit on, in both schemes, at
+- [x] **T005** Verify the two new colours against the surfaces they sit on, in both schemes, at
   WCAG 2.1 AA. Adjust the values, not the requirement. (FR-012)
-- [ ] **T006** [P] Create `apps/web/lib/format.ts` exporting `formatCurrency` (AED, 0 fraction
+- [x] **T006** [P] Create `apps/web/lib/format.ts` exporting `formatCurrency` (AED, 0 fraction
   digits), `formatHours` (1 decimal) and `formatPercent` (1 decimal, signed), each built on
   `Intl.NumberFormat`. Each returns an em dash for `null`/`undefined` and a formatted zero for `0`.
   (FR-010)
-- [ ] **T007** Snapshot the dependency files **before** invoking the generator, so T009 can restore
+- [x] **T007** Snapshot the dependency files **before** invoking the generator, so T009 can restore
   the exact pre-generation state rather than some other branch's state:
 
   ```bash
@@ -72,15 +72,15 @@ Everything in Phase 3 onwards imports from this phase.
   `.fe01-depsnap/` is a scratch directory for the duration of T007 – T009 and is deleted in T009.
   Do not commit it.
 
-- [ ] **T008** Generate the four UI primitives with the already-installed CLI, against the
+- [x] **T008** Generate the four UI primitives with the already-installed CLI, against the
   configured `base-nova` style: `pnpm --filter web exec shadcn add button card table skeleton`.
   This writes `apps/web/components/ui/{button,card,table,skeleton}.tsx`. (FR-014)
-- [ ] **T008a** Adjust the generated `table.tsx` so the table sits inside an `overflow-x-auto`
+- [x] **T008a** Adjust the generated `table.tsx` so the table sits inside an `overflow-x-auto`
   container and header cells carry `scope`. Change nothing else the generator produced. (FR-015)
 
 ### Dependency guard — must pass before Phase 3
 
-- [ ] **T009** Compare the dependency files against the T007 snapshot — **not** against `main`,
+- [x] **T009** Compare the dependency files against the T007 snapshot — **not** against `main`,
   which can move underneath this branch while BE-02 merges:
 
   ```bash
@@ -121,18 +121,18 @@ Everything in Phase 3 onwards imports from this phase.
 Ordered before User Story 1 because the shell is what US1 renders inside. Delivered together, they
 are the MVP.
 
-- [ ] **T010** [US2] Create `apps/web/components/app-nav.tsx` as a Client Component. List the four
+- [x] **T010** [US2] Create `apps/web/components/app-nav.tsx` as a Client Component. List the four
   sections — Dashboard `/`, Projects `/projects`, Productivity `/productivity`, Categories
   `/categories` — in this file and nowhere else. Read `usePathname()`; set `aria-current="page"` on
   the match, using an exact match for `/` and `startsWith` for the other three. Convey current
   state by weight and a rule, not by colour alone. Accept a prop for the two presentations (rail,
   header row). (FR-002, FR-003, FR-011)
-- [ ] **T011** [US2] Rewrite `apps/web/app/layout.tsx` as the shell: keep `html`/`body`, the Geist
+- [x] **T011** [US2] Rewrite `apps/web/app/layout.tsx` as the shell: keep `html`/`body`, the Geist
   variables and `<Providers>`; add a header naming the product, `<nav aria-label="Sections">`
   rendering `AppNav` as a `md:`-and-up side rail and as a scrollable row in the header below `md`,
   and `<main>` for the page. Replace the starter `metadata` with a real title carrying a
   `title.template`, plus a description. (FR-001, FR-005, US3-1, US3-2)
-- [ ] **T012** [US2] Create `apps/web/app/not-found.tsx`: a heading, a short explanation, and a
+- [x] **T012** [US2] Create `apps/web/app/not-found.tsx`: a heading, a short explanation, and a
   `Button` linking to `/`, rendered inside the shell. (FR-006)
 
 **Checkpoint**: all four sections navigate within one shell, current state is correct and
@@ -144,16 +144,16 @@ announced, and an unmatched URL is handled. (US2 acceptance scenarios 1 – 5)
 
 Depends on Phase 3 (shell) and Phase 2 (card, table, formatters).
 
-- [ ] **T013** [P] [US1] Create `apps/web/components/stat-card.tsx`: a `Card` presenting one
+- [x] **T013** [P] [US1] Create `apps/web/components/stat-card.tsx`: a `Card` presenting one
   labelled headline figure, with the value in `tabular-nums`, and optional positive/negative
   emphasis using the T004 tokens. (FR-009, FR-020)
-- [ ] **T014** [US1] Rewrite `apps/web/app/page.tsx` as the dashboard: a page heading, the
+- [x] **T014** [US1] Rewrite `apps/web/app/page.tsx` as the dashboard: a page heading, the
   persistent placeholder notice, five `StatCard`s (total hours, billable hours, cost, revenue,
   margin), and one project-level table of six rows. Sample values are literals directly above the
   markup, marked as placeholders — not exported, not moved to a fixture, not
   shaped like an API response. Format every number through `lib/format.ts`; right-align and
   `tabular-nums` every numeric column. Export the section `metadata`. (FR-009, FR-020, FR-021)
-- [ ] **T015** [US1] Delete the now-unused starter assets: `apps/web/public/next.svg`,
+- [x] **T015** [US1] Delete the now-unused starter assets: `apps/web/public/next.svg`,
   `vercel.svg`, `file.svg`, `globe.svg`, `window.svg`. Confirm nothing references them.
 
 **Checkpoint**: the root URL shows a dashboard a reviewer would keep open, and is honest about its
@@ -165,14 +165,14 @@ figures. (US1 acceptance scenarios 1 – 5)
 
 Depends on Phase 3 (shell) and Phase 2 (card).
 
-- [ ] **T016** [US4] Create `apps/web/components/empty-state.tsx`: a `lucide-react` icon, a real
+- [x] **T016** [US4] Create `apps/web/components/empty-state.tsx`: a `lucide-react` icon, a real
   heading element, and a description, centred in a `Card`. Wording comes from props. No action
   control, because there is no action to offer yet. (FR-016, FR-022)
-- [ ] **T017** [P] [US4] Create `apps/web/app/projects/page.tsx` — section heading, `metadata`, and
+- [x] **T017** [P] [US4] Create `apps/web/app/projects/page.tsx` — section heading, `metadata`, and
   `EmptyState` worded for projects (what the section will show once spreadsheets are ingested).
-- [ ] **T018** [P] [US4] Create `apps/web/app/productivity/page.tsx` — the same, worded for
+- [x] **T018** [P] [US4] Create `apps/web/app/productivity/page.tsx` — the same, worded for
   productivity.
-- [ ] **T019** [P] [US4] Create `apps/web/app/categories/page.tsx` — the same, worded for
+- [x] **T019** [P] [US4] Create `apps/web/app/categories/page.tsx` — the same, worded for
   categories.
 
 **Checkpoint**: three sections state plainly that there is no data yet, without pretending to be
@@ -184,13 +184,13 @@ broken and without offering a control that does nothing. (US4 acceptance scenari
 
 Depends on Phase 3 (shell) and Phase 2 (skeleton, button).
 
-- [ ] **T020** [P] [US5] Create `apps/web/app/loading.tsx`: `Skeleton` blocks in roughly the shape
+- [x] **T020** [P] [US5] Create `apps/web/app/loading.tsx`: `Skeleton` blocks in roughly the shape
   of the dashboard — a heading bar, five cards, a table. Any pulse must respect
   `prefers-reduced-motion`. (FR-013, FR-017)
-- [ ] **T021** [US5] Create `apps/web/components/error-state.tsx` as a Client Component: a heading,
+- [x] **T021** [US5] Create `apps/web/components/error-state.tsx` as a Client Component: a heading,
   a plainly worded message, and a `Button` calling an `onRetry` prop. Do not render `error.message`
   or `error.stack` to the reader. (FR-016, FR-018)
-- [ ] **T022** [US5] Create `apps/web/app/error.tsx` as a Client Component with props
+- [x] **T022** [US5] Create `apps/web/app/error.tsx` as a Client Component with props
   `{ error, retry }`, following the documentation shipped with this Next.js version (research.md
   Decision 1). Log the error to the console in an effect; render `ErrorState` with
   `onRetry={retry}`. (FR-018, FR-019)
@@ -205,13 +205,13 @@ Depends on Phase 3 (shell) and Phase 2 (skeleton, button).
 No task in this phase writes application code. Report real output only (Constitution Principle
 VIII).
 
-- [ ] **T023** Run `pnpm --filter web lint`. Fix every error and warning; re-run.
-- [ ] **T024** Run `pnpm --filter web exec tsc --noEmit`. Fix every error; re-run.
-- [ ] **T025** Run `pnpm --filter web build`. Fix every error and warning; re-run.
-- [ ] **T026** Work through [quickstart.md](./quickstart.md) sections A – H in a browser, filling in
+- [x] **T023** Run `pnpm --filter web lint`. Fix every error and warning; re-run.
+- [x] **T024** Run `pnpm --filter web exec tsc --noEmit`. Fix every error; re-run.
+- [x] **T025** Run `pnpm --filter web build`. Fix every error and warning; re-run.
+- [x] **T026** Work through [quickstart.md](./quickstart.md) sections A – H in a browser, filling in
   the Result column of every row. Sections F and G are the ones most easily skipped and least
   easily recovered later; do not skip them. Confirm the F2/F6 reverts.
-- [ ] **T027** Confirm the boundary against this branch's base, not against a moving `main`:
+- [x] **T027** Confirm the boundary against this branch's base, not against a moving `main`:
 
   ```bash
   git diff --stat "$(git merge-base HEAD main)"
@@ -220,9 +220,9 @@ VIII).
   Changes must appear only under `apps/web/`, `specs/003-frontend-foundation/` and `.specify/`. No
   `apps/api` file, no root config, no root `README.md`, no `pnpm-lock.yaml`, no test file, no new
   script. Confirm `.fe01-depsnap/` is gone. (FR-024, FR-026, SC-007, SC-008)
-- [ ] **T028** If `apps/web/AGENTS.md` reappears as an uncommitted change, commit it with the work
+- [x] **T028** If `apps/web/AGENTS.md` reappears as an uncommitted change, commit it with the work
   — `next dev` rewrites it, and leaving it out only recreates the diff.
-- [ ] **T029** Leave the root `README.md` alone. If this spec's work makes something in it stale,
+- [x] **T029** Leave the root `README.md` alone. If this spec's work makes something in it stale,
   record that in the **Coordination note** in `plan.md` for the owner to fold in once the parallel
   branches have landed. Documentation belonging to this spec lives in
   `specs/003-frontend-foundation/`; documentation belonging to the frontend lives under `apps/web/`.
