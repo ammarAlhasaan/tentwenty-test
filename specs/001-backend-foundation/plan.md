@@ -35,8 +35,9 @@ adapter over the bundled `express@5.2.1`); Zod 4.5.4; **new:** `@nestjs/config@^
 **Storage**: One local SQLite file via `better-sqlite3`. Path from configuration, relative paths
 anchored to `apps/api`. **No tables created by this spec.**
 
-**Testing**: Vitest 4.1.11, existing `apps/api/vitest.config.ts` unchanged, `**/*.spec.ts`.
-Isolated unit tests only — no `supertest`, no test-only routes.
+**Testing**: None. Vitest, `vite-tsconfig-paths`, `@nestjs/testing` and `vitest.config.ts` were
+removed from `apps/api` on 2026-09-09 at the owner's direction. `oxlint` and `tsc --noEmit` are the
+only automated gates; behaviour is verified by the manual checks in `quickstart.md`.
 
 **Target Platform**: Local macOS development, Node process on port 4000. No cloud account, API
 key, or paid service.
@@ -96,38 +97,35 @@ specs/001-backend-foundation/
 
 ```text
 apps/api/
-├── package.json                        # MODIFIED — add 2 deps + 1 devDep
+├── package.json                        # MODIFIED — add 2 deps + 1 devDep; drop vitest, vite-tsconfig-paths, @nestjs/testing and the test scripts
 ├── .env.example                        # NEW
 ├── README.md                           # NEW — local setup
-├── vitest.config.ts                    # unchanged
+├── vitest.config.ts                    # DELETED — test suite removed
 └── src/
     ├── main.ts                         # MODIFIED — global pipe, CORS, shutdown hooks, config-driven port
     ├── app.module.ts                   # MODIFIED — import ConfigModule + DatabaseModule, provide APP_FILTER
     ├── app.controller.ts               # unchanged — GET /health stays exactly as it is
     ├── config.ts                       # NEW — Zod env schema, path anchor, typed accessor
-    ├── config.spec.ts                  # NEW — valid/invalid config cases
     ├── common/
-    │   ├── http-exception.filter.ts    # NEW — the single global filter
-    │   └── http-exception.filter.spec.ts # NEW — the three error classes
+    │   └── http-exception.filter.ts    # NEW — the single global filter
     └── database/
         ├── database.module.ts          # NEW — @Global, provides + exports DatabaseService
-        ├── database.service.ts         # NEW — open on init, close on destroy
-        └── database.service.spec.ts    # NEW — write/close/reopen/read against a temp file
+        └── database.service.ts         # NEW — open on init, close on destroy
 
 .gitignore                              # MODIFIED — ignore apps/api/.env and the SQLite file
 README.md                               # MODIFIED — point at the API setup section
 ```
 
-Untouched: `apps/web/**`, root `package.json` scripts, `pnpm-workspace.yaml`, `nest-cli.json`,
-`tsconfig*.json`, `oxlint.json`, `.prettierrc`.
+Untouched: `apps/web/**`, root `package.json` scripts, `nest-cli.json`, `oxlint.json`,
+`.prettierrc`. `pnpm-workspace.yaml` answers its own `allowBuilds` placeholder for
+`better-sqlite3`; `apps/api/tsconfig.json` drops `vitest/globals` from `types`.
 
 **Structure Decision**: The target structure given in the task brief is adopted **unchanged** —
 `main.ts`, `app.module.ts`, `config.ts`, `common/http-exception.filter.ts`,
 `database/database.module.ts`, `database.service.ts`. It already matches Nest's own conventions
 (feature folder for the database module, flat `common/` for the cross-cutting filter, a single
 flat `config.ts` rather than a `config/` folder holding one file), so no simplification is
-available. Test files sit next to their subjects, matching the `**/*.spec.ts` pattern already
-configured in `vitest.config.ts`. `app.controller.ts` keeps the health route where it is.
+available. `app.controller.ts` keeps the health route where it is.
 
 ## Key Design Points
 
@@ -149,10 +147,9 @@ ON`; `onModuleDestroy` calls `close()`. `main.ts` adds `app.enableShutdownHooks(
 SIGTERM actually reaches it. The service exposes the `Database` instance directly — no query
 wrapper, per Constitution II.
 
-It is covered by a unit test that drives **the service itself** against a temp path, rather than
-only by the quickstart probe: the probe opens its own connection to a hard-coded file and would
-pass even if the service wrote elsewhere or never closed its handle. The test writes through the
-service, runs `onModuleDestroy`, asserts the handle is closed, then re-opens and reads back.
+It is verified by the quickstart restart probe only. That probe opens its own connection to a
+hard-coded file, so it proves SQLite persists rather than proving the service uses the configured
+file and closes its handle — a known gap, accepted when the test suite was removed.
 
 **`main.ts`** — reads port and origin from `ConfigService`, then
 `app.useGlobalPipes(new StandardSchemaValidationPipe())`, `app.enableCors({ origin:

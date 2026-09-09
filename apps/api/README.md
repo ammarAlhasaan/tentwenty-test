@@ -91,6 +91,8 @@ keys are on.
 ```bash
 pnpm --filter api dev       # watch mode
 pnpm --filter api build     # compile to dist/
-pnpm --filter api test      # vitest
 pnpm --filter api lint      # oxlint
 ```
+
+There is no test suite in this app by decision — behaviour is verified by running it. See
+[the verification guide](../../specs/001-backend-foundation/quickstart.md) for the commands.

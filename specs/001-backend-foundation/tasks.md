@@ -10,9 +10,11 @@ description: "Task list for BE-01 — Backend Foundation"
 **Prerequisites**: [spec.md](./spec.md), [plan.md](./plan.md), [research.md](./research.md),
 [data-model.md](./data-model.md), [contracts/](./contracts/), [quickstart.md](./quickstart.md)
 
-**Tests**: Included. Spec FR-030 requires error-path behaviour to be verified by isolated tests,
-and forbids permanent test or debug routes. Tests are unit-level (Vitest) only — no `supertest`,
-no HTTP server started in a test, no controller mounted only for testing.
+**Tests**: **None.** Tests were written and passing (33 of them), then removed on 2026-09-09 at
+the owner's direction along with Vitest, `vite-tsconfig-paths`, `@nestjs/testing` and
+`vitest.config.ts`. The tasks that produced them are struck through below and left in place as a
+record. `oxlint` and `tsc --noEmit` are the only automated gates; behaviour is verified manually
+per `quickstart.md`. Permanent test or debug routes are still forbidden.
 
 **Scope**: `apps/api` only. `apps/web` is not touched by any task here.
 
@@ -89,12 +91,12 @@ checkout. This is the MVP.
 
 ### Tests for User Story 2
 
-- [X] T013 [P] [US2] Create `apps/api/src/config.spec.ts` covering, against `envSchema` directly (no server started): a fully valid environment parses; a missing-value case falls back to each documented default; `PORT=not-a-number` fails with an issue whose path names `PORT`; `PORT=0` and `PORT=70000` fail the 1–65535 range; `FRONTEND_ORIGIN=notaurl` fails naming `FRONTEND_ORIGIN`; `NODE_ENV=staging` fails the enum.
+- [~] ~~T013~~ **REMOVED (file deleted 2026-09-09).** Was: [US2] Create `apps/api/src/config.spec.ts` covering, against `envSchema` directly (no server started): a fully valid environment parses; a missing-value case falls back to each documented default; `PORT=not-a-number` fails with an issue whose path names `PORT`; `PORT=0` and `PORT=70000` fail the 1–65535 range; `FRONTEND_ORIGIN=notaurl` fails naming `FRONTEND_ORIGIN`; `NODE_ENV=staging` fails the enum.
 
 ### Implementation for User Story 2
 
 - [X] T014 [US2] Confirm that a `validationSchema` failure aborts bootstrap with a non-zero exit rather than being caught and logged — `@nestjs/config` throws during module initialization, so this requires no code, only verification that nothing in `main.ts` swallows the bootstrap rejection (spec FR-002, FR-003).
-- [X] T015 [P] [US2] Add `resolveDatabaseFile` cases to `apps/api/src/config.spec.ts`: a relative path resolves to the same absolute file regardless of `process.cwd()` (set `process.cwd` to two different values within the test), and an absolute path is returned unchanged (spec FR-017).
+- [~] ~~T015~~ **REMOVED (file deleted 2026-09-09).** Was: [US2] Add `resolveDatabaseFile` cases to `apps/api/src/config.spec.ts`: a relative path resolves to the same absolute file regardless of `process.cwd()` (set `process.cwd` to two different values within the test), and an absolute path is returned unchanged (spec FR-017).
 
 **Checkpoint**: Configuration is proven to fail loudly and to default correctly.
 
@@ -110,7 +112,7 @@ their response bodies field by field.
 
 ### Tests for User Story 3
 
-- [X] T016 [P] [US3] Create `apps/api/src/common/http-exception.filter.spec.ts` calling the filter directly with a stubbed `ArgumentsHost` and a stubbed `HttpAdapterHost` (no HTTP server, no test route — spec FR-030). Assert: (a) a `BadRequestException` yields status 400 and the shape in contracts/errors.md; (b) a `NotFoundException` yields 404 with its status preserved (spec FR-011); (c) a plain `new Error('secret detail at /Users/...')` yields 500 with `message: ["Internal server error"]`; (d) that 500 body contains no stack, no file path, no `'secret detail'` substring, and no configuration value (spec FR-012, SC-005); (e) all three bodies have the identical key set `statusCode, error, message, path, timestamp` and `message` is an array in every case (spec SC-004); (f) `Logger.error` is called exactly once — for (c) only, never for (a) or (b) (spec FR-013, FR-014, SC-006).
+- [~] ~~T016~~ **REMOVED (file deleted 2026-09-09).** Was: [US3] Create `apps/api/src/common/http-exception.filter.spec.ts` calling the filter directly with a stubbed `ArgumentsHost` and a stubbed `HttpAdapterHost` (no HTTP server, no test route — spec FR-030). Assert: (a) a `BadRequestException` yields status 400 and the shape in contracts/errors.md; (b) a `NotFoundException` yields 404 with its status preserved (spec FR-011); (c) a plain `new Error('secret detail at /Users/...')` yields 500 with `message: ["Internal server error"]`; (d) that 500 body contains no stack, no file path, no `'secret detail'` substring, and no configuration value (spec FR-012, SC-005); (e) all three bodies have the identical key set `statusCode, error, message, path, timestamp` and `message` is an array in every case (spec SC-004); (f) `Logger.error` is called exactly once — for (c) only, never for (a) or (b) (spec FR-013, FR-014, SC-006).
 
 ### Implementation for User Story 3
 
@@ -119,7 +121,7 @@ their response bodies field by field.
 - [X] T019 [US3] Log only in the non-`HttpException` branch, via `Logger.error(message, stack)` at error level with full detail including the stack. Expected errors (validation failures, `HttpException`s) MUST NOT be logged at error level (spec FR-013, FR-014).
 - [X] T020 [US3] Register the filter globally in `apps/api/src/app.module.ts` via the `APP_FILTER` provider token (not `app.useGlobalFilters`), because the filter needs DI for `HttpAdapterHost` — the registration the official docs call preferable.
 - [X] T021 [US3] In `apps/api/src/main.ts`, add `app.useGlobalPipes(new StandardSchemaValidationPipe())` from `@nestjs/common`. Do not write a custom Zod pipe and do not install `nestjs-zod` — the pipe is built into the installed 12.0.1 (research.md Decision 2). Its default `errorHttpStatusCode` is already 400 (spec FR-007, FR-008, FR-009).
-- [X] T022 [P] [US3] Add a case to `apps/api/src/common/http-exception.filter.spec.ts` proving the pipe's output feeds the shape correctly: construct the exception `StandardSchemaValidationPipe` produces for a failing Zod schema, pass it to the filter, and assert 400 with one `message` entry per failed field, each prefixed with its path (spec FR-009). No route is added.
+- [~] ~~T022~~ **REMOVED (file deleted 2026-09-09).** Was: [US3] Add a case to `apps/api/src/common/http-exception.filter.spec.ts` proving the pipe's output feeds the shape correctly: construct the exception `StandardSchemaValidationPipe` produces for a failing Zod schema, pass it to the filter, and assert 400 with one `message` entry per failed field, each prefixed with its path (spec FR-009). No route is added.
 
 **Checkpoint**: The HTTP error contract that BE-02, BE-03, and `apps/web` all depend on is fixed
 and tested.
@@ -140,7 +142,7 @@ cleanly.
 - [X] T025 [US4] Create `apps/api/src/database/database.module.ts`: a `@Global() @Module({ providers: [DatabaseService], exports: [DatabaseService] })`. Global so BE-02/BE-03 need no repeated import. Create **no** table, migration, or seed — data-model.md records zero tables for BE-01 (spec FR-021).
 - [X] T026 [US4] Import `DatabaseModule` in `apps/api/src/app.module.ts`.
 - [X] T027 [US4] In `apps/api/src/main.ts`, call `app.enableShutdownHooks()` before `listen`, so that SIGINT/SIGTERM actually reaches `onModuleDestroy` (https://docs.nestjs.com/fundamentals/lifecycle-events). Without it, T023's `close()` never runs and spec FR-020 fails silently.
-- [X] T027a [US4] Create `apps/api/src/database/database.service.spec.ts` exercising **the service itself**, not an independently opened connection. Instantiate `DatabaseService` with a stub `ConfigService` pointing at a unique temp path under `os.tmpdir()`; run `onModuleInit`; assert the file was created at the path the service resolved (spec FR-016, FR-018); create a scratch table and insert a row through `service.db`; run `onModuleDestroy` and assert the handle is closed (`service.db.open === false`, and a further query throws — spec FR-020); then open a fresh `better-sqlite3` connection to that same temp path and read the row back (spec FR-019). Also assert that a path which cannot be opened makes `onModuleInit` reject with the path in the message (spec FR-024's sibling, US-4 scenario 5). Clean up the temp file in `afterEach`. **Why this task exists**: the quickstart § 6 probe opens its own connection to a hard-coded file, so it would pass even if `DatabaseService` wrote to a different file or never closed its handle — it proves SQLite persists, not that the service is correct.
+- [~] ~~T027a~~ **REMOVED (file deleted 2026-09-09).** Was: Create `apps/api/src/database/database.service.spec.ts` exercising **the service itself**, not an independently opened connection. Instantiate `DatabaseService` with a stub `ConfigService` pointing at a unique temp path under `os.tmpdir()`; run `onModuleInit`; assert the file was created at the path the service resolved (spec FR-016, FR-018); create a scratch table and insert a row through `service.db`; run `onModuleDestroy` and assert the handle is closed (`service.db.open === false`, and a further query throws — spec FR-020); then open a fresh `better-sqlite3` connection to that same temp path and read the row back (spec FR-019). Also assert that a path which cannot be opened makes `onModuleInit` reject with the path in the message (spec FR-024's sibling, US-4 scenario 5). Clean up the temp file in `afterEach`. **Why this task exists**: the quickstart § 6 probe opens its own connection to a hard-coded file, so it would pass even if `DatabaseService` wrote to a different file or never closed its handle — it proves SQLite persists, not that the service is correct.
 
 **Checkpoint**: A connection exists, persists, and closes — with nothing inside it yet.
 
@@ -177,8 +179,8 @@ was inconclusive, or failed is reported as such, with its output.
 - [X] T036 Database path resolution: run quickstart § 5 from the repository root and from `apps/api`; confirm exactly one `.sqlite` file exists, under `apps/api/data/` in both cases (spec SC-008).
 - [X] T037 Persistence across restart: run quickstart § 6's write → restart → read using the ad-hoc `_probe` scratch table, then drop it. Confirm the value survives (spec SC-007). The scratch table MUST NOT be added to application source. This is a coarse end-to-end check on the real file; T027a is the test that actually covers the service's own behaviour.
 - [X] T038 Clean shutdown: run quickstart § 7 — SIGINT the process and confirm no `-wal` / `-shm` sidecar files remain in `apps/api/data/` (spec FR-020).
-- [X] T039 Automated tests: `pnpm --filter api test`. All tests pass — `config.spec.ts`, `http-exception.filter.spec.ts`, and `database.service.spec.ts`. Confirm no test starts an HTTP server and no test/debug route exists in the application (spec FR-030).
-- [X] T040 Lint: `pnpm --filter api lint` passes.
+- [X] T039 ~~Automated tests~~ **REMOVED.** There is no test suite and no `test` script. Replaced by: `cd apps/api && npx tsc --noEmit -p tsconfig.json` must exit 0, and no test/debug route exists in the application.
+- [X] T040 Lint: `pnpm --filter api lint` passes. With the suite gone, this and `tsc --noEmit` are the only automated gates — the error-shape and CORS checks in quickstart § 3 and § 4 must be re-run by hand after any change to `config.ts`, `common/http-exception.filter.ts` or `main.ts`.
 - [X] T041 Confirm the frontend is untouched: `git status --short apps/web` is empty, and root `package.json` and `pnpm-workspace.yaml` are unchanged (spec Out of Scope, FR-027).
 
 ---

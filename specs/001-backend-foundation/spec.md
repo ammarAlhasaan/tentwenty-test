@@ -253,8 +253,10 @@ origin, and compare the responses.
 
 **Testing**
 
-- **FR-030**: Error-path behaviour MUST be verified through isolated tests. Permanent test or
-  debug routes MUST NOT be added to the API.
+- **FR-030**: ~~Error-path behaviour MUST be verified through isolated tests.~~ **Amended
+  2026-09-09 at the owner's direction**: the backend carries no test suite. Error-path behaviour is
+  verified by running the documented manual checks instead. Permanent test or debug routes MUST
+  still NOT be added to the API.
 
 ### Key Entities
 
@@ -271,15 +273,15 @@ belongs to the later spec that needs it (FR-021).
   a dependency conflict.
 - **SC-003**: 100% of settings the API depends on are declared in the example environment file.
 - **SC-004**: Every one of the three error classes — rejected input, known error with a status,
-  and unexpected error — returns a body with the identical field set, verified by test.
+  and unexpected error — returns a body with the identical field set, verified by manual check.
 - **SC-005**: Zero unexpected-error responses expose a stack trace, file path, internal message,
-  or configuration value, verified by test.
+  or configuration value, verified by manual check.
 - **SC-006**: 100% of unexpected errors produce a corresponding error-level log entry.
 - **SC-007**: A value written before a restart is readable after it, in 100% of restart attempts.
 - **SC-008**: A relative database path resolves to the same file when the API is started from the
   repository root and from the API application directory.
 - **SC-009**: The configured frontend origin is permitted with credentials and a different origin
-  is not, verified by test.
+  is not, verified by manual check.
 - **SC-010**: The API adds zero endpoints beyond the existing health check.
 
 ## Out of Scope

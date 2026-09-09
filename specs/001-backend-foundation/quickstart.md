@@ -160,21 +160,25 @@ ls apps/api/data/
 Expected: the process exits cleanly, and no `-wal` / `-shm` sidecar files are left behind — a
 closed WAL connection checkpoints and removes them.
 
-## 8. Automated checks (spec FR-030)
+## 8. Static checks
 
-```bash
-pnpm --filter api test
-```
-
-Expected: all tests pass. Coverage is the config schema (valid/invalid/defaults), the exception
-filter's three error classes — including the assertion that a 500 body contains no stack, path, or
-internal message — and `DatabaseService` itself (write through the service, close, re-open, read
-back, plus the unopenable-path failure). No test starts an HTTP server and no test route exists in
-the application.
+The API has **no test suite** — removed by decision (see spec § Testing). Everything in this
+document is therefore a manual check, and these two are the only automated gates:
 
 ```bash
 pnpm --filter api lint
 ```
+
+```bash
+cd apps/api && npx tsc --noEmit -p tsconfig.json
+```
+
+Both must exit 0.
+
+> Because nothing here is automatic, the error-shape behaviour in § 3 and the CORS behaviour in
+> § 4 have to be re-run by hand after any change to `config.ts`,
+> `common/http-exception.filter.ts`, or `main.ts`. A 500 leaking a stack trace is the regression
+> to watch for; it is invisible until someone looks at a real error response.
 
 ## 9. Frontend untouched (spec Out of Scope)
 

@@ -226,9 +226,21 @@ prints level, timestamp, and context. A structured logger (`pino`, `winston`) re
 meaningful complexity for a locally run exercise (Constitution VII), and the spec's Assumptions
 explicitly say structured output is not required.
 
-### Decision 7 — Testing: existing Vitest, isolated tests only
+### Decision 7 — Testing: ~~existing Vitest, isolated tests only~~ **superseded — no test suite**
 
-**Decision**: Reuse `apps/api/vitest.config.ts` unchanged. Error-path behaviour is tested by
+> **Superseded 2026-09-09, at the owner's direction**: the backend carries no tests. Vitest,
+> `vite-tsconfig-paths`, `@nestjs/testing`, `vitest.config.ts` and all three `*.spec.ts` files were
+> removed, and `vitest/globals` was dropped from `tsconfig.json` `types`. `oxlint` and
+> `tsc --noEmit` are the only automated gates; everything else is manual, per `quickstart.md`.
+> What that gives up, recorded so the trade is visible rather than forgotten: the assertion that a
+> 500 response carries no stack trace, file path or internal message (spec SC-005) was the one
+> check where a silent regression is a disclosure bug rather than a visible failure. The original
+> reasoning is kept below for whoever revisits this.
+>
+> The nine `FRONTEND_ORIGIN` normalisation cases are also gone; that behaviour now rests on the
+> single manual CORS check.
+
+**Original decision**: Reuse `apps/api/vitest.config.ts` unchanged. Error-path behaviour is tested by
 calling the filter with a stubbed `ArgumentsHost`/`HttpAdapterHost` and by validating Zod schemas
 directly. Config validation is tested by running the schema against good and bad objects.
 `DatabaseService` is tested directly against a temporary file. No `supertest`, no HTTP-level e2e
