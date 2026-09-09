@@ -41,6 +41,17 @@ Starts both apps in parallel:
 
 Health check: `curl http://localhost:4000/health` → `{"status":"ok"}`
 
+## Sign in
+
+The API requires a session. A demo user is created automatically on first start:
+
+| email | password |
+|---|---|
+| `demo@tentwenty.local` | `demo-password-2026` |
+
+No SQL and no seed command — the password is hashed with Argon2id on creation. See
+[apps/api/README.md](apps/api/README.md#authentication) for the endpoints and session behaviour.
+
 To run one app on its own:
 
 ```bash
