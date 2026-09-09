@@ -20,7 +20,7 @@ export function StatCard({
         </CardDescription>
         <p
           className={cn(
-            "font-heading text-2xl font-semibold tabular-nums",
+            "font-heading text-xl font-semibold tabular-nums 2xl:text-2xl",
             tone === "positive" && "text-positive",
             tone === "negative" && "text-negative"
           )}
