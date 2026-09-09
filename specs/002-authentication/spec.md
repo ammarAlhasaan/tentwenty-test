@@ -333,8 +333,10 @@ and observe it succeed; issue the same request claiming a different origin and o
 - **SC-006**: The session identifier issued after login differs from the one the client held before
   login, in 100% of logins.
 - **SC-007**: The session cookie carries the script-inaccessible, cross-site-restricted, and expiry
-  attributes in development, and additionally the secure-only attribute when configured for
-  production.
+  attributes in development, and the secure-only setting takes effect when configured for production.
+  Over a plain-HTTP local origin the secure-only setting is observed by the cookie being withheld
+  entirely; observing the attribute itself on the wire requires an HTTPS origin and is deferred
+  (see [quickstart.md](./quickstart.md) § 10).
 - **SC-008**: Every error response produced by BE-02 — 400, 401, 403, 429, 500 — carries the same
   five fields as every BE-01 error response.
 - **SC-009**: A state-changing request declaring a non-configured origin is refused, and `GET /health`

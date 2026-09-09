@@ -20,8 +20,8 @@ automatically when the request is made with credentials.
 | value | signed session identifier — opaque | same |
 | `HttpOnly` | yes | yes |
 | `SameSite` | `Lax` | `Lax` |
-| `Secure` | **no** (local HTTP) | **yes** |
-| `Max-Age` | `SESSION_TTL_HOURS` (default 12 h) | same |
+| `Secure` | **no** — with `Secure` set, a browser on plain HTTP would not receive the cookie at all | **yes** (requires HTTPS) |
+| lifetime | `Expires`, computed as now + `SESSION_TTL_HOURS` (default 12 h) | same |
 | `Path` | `/` | `/` |
 
 The cookie value contains only a signed identifier. It never carries the user's id, email, or any
@@ -78,8 +78,12 @@ instead of silently authenticating on the two fields that did match.
 ```
 
 ```http
-Set-Cookie: sid=s%3A<signed-id>; Path=/; HttpOnly; SameSite=Lax; Max-Age=43200
+Set-Cookie: sid=s%3A<signed-id>; Path=/; HttpOnly; SameSite=Lax; Expires=Wed, 10 Sep 2026 06:00:00 GMT
 ```
+
+The lifetime appears as **`Expires`**, not `Max-Age`: `express-session`'s `cookie.maxAge` is the value
+used *to calculate* `Expires` from the current server time, not a literal header. With
+`rolling: true`, `Expires` moves forward on each response.
 
 The body carries **only** `id` and `email`. No password hash, no session identifier, no secret
 (spec FR-004, SC-003).

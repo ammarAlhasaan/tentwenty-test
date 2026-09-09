@@ -9,9 +9,25 @@ Principle VIII).
 
 > **This backend has no automated test suite.** The repository owner deferred all backend automated
 > testing until after BE-03, and BE-01's test scaffolding was removed by that decision. Every check
-> below is therefore manual, and § 11 lists the only automated gates that exist. Because nothing here
-> runs by itself, §§ 4–9 must be re-run by hand after any change to `auth/`, `config.ts`, or
+> below is therefore manual, and § 12 lists the only automated gates that exist. Because nothing here
+> runs by itself, §§ 4–10 must be re-run by hand after any change to `auth/`, `config.ts`, or
 > `main.ts`.
+
+## Ground rules for these checks
+
+Three rules make the checks safe and independent. They are not optional.
+
+1. **A dedicated verification database.** Every check runs the API against
+   `apps/api/data/verify-be02.sqlite`, passed through `DATABASE_PATH`. **No check reads, writes, or
+   deletes `margin.sqlite`**, and no check touches any database outside this worktree. The
+   verification file is covered by the existing `apps/api/data/*.sqlite` ignore rule, so it never
+   shows up in `git status`.
+2. **Absolute paths only.** Every block that changes directory uses `$WT`. No block leaves the shell
+   somewhere a later block does not expect — a `cd /tmp` followed by a relative `cd apps/api` would
+   silently target the wrong tree.
+3. **A fresh session per scenario.** Any check that needs a signed-in client logs in for itself into
+   its own cookie jar. No check reuses a session that an earlier check expired, destroyed, or left in
+   an unknown state.
 
 ## Prerequisites
 
@@ -19,12 +35,22 @@ Principle VIII).
 - pnpm 11.9.0: `corepack enable`
 - No cloud account, API key, or paid service.
 
-Two shells are useful: one running the API, one running the checks.
+Two shells are useful: one running the API, one running the checks. **Run the exports below in
+both.**
+
+```bash
+export WT=/Users/ammaralhasan/Documents/claude-worktree/tentwenty-test/authentication
+export DB="$WT/apps/api/data/verify-be02.sqlite"
+export JARS="${TMPDIR:-/tmp}/be02-verify"
+mkdir -p "$JARS" && echo "WT=$WT" && echo "DB=$DB" && echo "JARS=$JARS"
+```
+
+`$JARS` holds only `curl` cookie jars — never project data.
 
 ## Setup
 
 ```bash
-nvm use && pnpm install
+cd "$WT" && nvm use && pnpm install
 ```
 
 `pnpm install` must complete with **no** `--force`, **no** `--legacy-peer-deps`, and no
@@ -32,25 +58,38 @@ peer-dependency error (spec SC-010). Watch for `node-gyp` output — `@node-rs/a
 binaries and should download, not compile.
 
 ```bash
-cp apps/api/.env.example apps/api/.env
+cd "$WT" && cp apps/api/.env.example apps/api/.env
 ```
 
 No edits needed: `SESSION_SECRET` has a development default and `SESSION_TTL_HOURS` defaults to 12.
 
-Start from a clean database so the demo user is seeded (§ 2):
+Start from an empty **verification** database, so the demo user is seeded (§ 2):
 
 ```bash
-rm -f apps/api/data/margin.sqlite*
+rm -f "$DB" "$DB-wal" "$DB-shm" && echo "verification database reset"
 ```
 
+This is the only `rm` in this document, and it names `$DB` explicitly. **Never**
+`rm apps/api/data/margin.sqlite*` — that is the project's own database.
+
+### Starting the API
+
+Every start in this guide uses this command, in the API shell. Where a check needs different
+settings, it says so and gives the full command.
+
 ```bash
-pnpm --filter api dev
+cd "$WT/apps/api" && DATABASE_PATH=./data/verify-be02.sqlite pnpm dev
 ```
 
-A cookie jar carries the session between checks:
+"Restart the API" below always means: `Ctrl+C` in that shell, then run this command again.
+
+### Reading the verification database
+
+Several checks inspect the database directly. They all take this form — absolute `$DB`, run from
+`$WT/apps/api` so `better-sqlite3` resolves:
 
 ```bash
-cd /tmp && rm -f jar.txt
+cd "$WT/apps/api" && node -e "const D=require('better-sqlite3');const db=new D(process.env.DB);console.log(db.prepare('SELECT COUNT(*) AS n FROM users').get());db.close()"
 ```
 
 ## 1. Health is still public (spec FR-023, SC-009)
@@ -63,7 +102,7 @@ Expected: `200`, body `{"status":"ok"}`, with no session and no cookie.
 
 ## 2. The demo user exists (spec US4, FR-027)
 
-Read the startup log from `pnpm --filter api dev`.
+Read the startup log from the API shell.
 
 Expected: one line naming the seeded demo email, printed only on the first start against an empty
 database. **The password must not appear in the log** — it is in `apps/api/README.md`.
@@ -71,7 +110,7 @@ database. **The password must not appear in the log** — it is in `apps/api/REA
 Confirm the password was stored hashed, not in plaintext (spec US4 scenario 3):
 
 ```bash
-cd apps/api && node -e "const D=require('better-sqlite3');const db=new D('data/margin.sqlite');console.log(db.prepare('SELECT id,email,substr(password_hash,1,30) AS hash_prefix FROM users').all());db.close()"
+cd "$WT/apps/api" && node -e "const D=require('better-sqlite3');const db=new D(process.env.DB);console.log(db.prepare('SELECT id,email,substr(password_hash,1,30) AS hash_prefix FROM users').all());db.close()"
 ```
 
 Expected: one row, `hash_prefix` beginning `$argon2id$v=19$m=19456`. If the plaintext password appears
@@ -106,18 +145,18 @@ Expected: `400`, returned promptly — not a multi-second pause, which would mea
 Wrong password for a real user, then a password for an unknown user:
 
 ```bash
-curl -s -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"wrong-password"}' | tee /tmp/a.json
+curl -s -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"wrong-password"}' > "$JARS/a.json"; cat "$JARS/a.json"
 ```
 
 ```bash
-curl -s -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"nobody@tentwenty.local","password":"wrong-password"}' | tee /tmp/b.json
+curl -s -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"nobody@tentwenty.local","password":"wrong-password"}' > "$JARS/b.json"; cat "$JARS/b.json"
 ```
 
 Both must be `401` with `"message":["Invalid email or password"]`. Now prove they differ only in the
 timestamp:
 
 ```bash
-diff <(sed 's/"timestamp":"[^"]*"/"timestamp":"X"/' /tmp/a.json) <(sed 's/"timestamp":"[^"]*"/"timestamp":"X"/' /tmp/b.json) && echo "IDENTICAL"
+diff <(sed 's/"timestamp":"[^"]*"/"timestamp":"X"/' "$JARS/a.json") <(sed 's/"timestamp":"[^"]*"/"timestamp":"X"/' "$JARS/b.json") && echo "IDENTICAL"
 ```
 
 Expected: `IDENTICAL`. Any difference — a distinct message, a different field — leaks which accounts
@@ -131,39 +170,66 @@ curl -si -X POST http://localhost:4000/auth/login -H 'Content-Type: application/
 
 ## 5. Successful login (spec US1, FR-007, SC-003)
 
+Fresh jar for this check:
+
 ```bash
-curl -si -c /tmp/jar.txt -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}'
+rm -f "$JARS/login.txt" && curl -si -c "$JARS/login.txt" -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}'
 ```
 
 Expected: `200`, body exactly `{"user":{"id":1,"email":"demo@tentwenty.local"}}`. The body must
 contain **no** `password_hash`, no `sid`, and no secret (SC-003).
 
-Inspect the cookie attributes in the `Set-Cookie` header (spec FR-014, SC-007):
+### Cookie attributes (spec FR-014, SC-007)
 
 ```bash
 curl -si -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}' | grep -i '^set-cookie'
 ```
 
-Expected in development: `sid=`, `Path=/`, `HttpOnly`, `SameSite=Lax`, `Max-Age=43200`, and **no**
-`Secure` — local sign-in is over plain HTTP.
+Expected in development: `sid=`, `Path=/`, `HttpOnly`, `SameSite=Lax`, an **`Expires=`** attribute
+roughly 12 hours in the future, and **no** `Secure` — local sign-in is over plain HTTP.
+
+> **Expect `Expires`, not `Max-Age`.** `express-session`'s `cookie.maxAge` is documented as the number
+> of milliseconds used *to calculate the `Expires` attribute* — "taking the current server time and
+> adding `maxAge` milliseconds" — not as a literal `Max-Age` header. A check that greps for
+> `Max-Age=43200` fails against a correct implementation.
 
 ### Session is regenerated on login (spec FR-009, SC-006)
 
 Log in twice with the same jar and compare the identifiers:
 
 ```bash
-cd /tmp && rm -f j1.txt && curl -s -c j1.txt -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}' >/dev/null && grep sid j1.txt | awk '{print $7}' > sid1.txt && curl -s -b j1.txt -c j1.txt -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}' >/dev/null && grep sid j1.txt | awk '{print $7}' > sid2.txt && (diff -q sid1.txt sid2.txt >/dev/null && echo "FAIL: sid reused" || echo "PASS: sid regenerated")
+rm -f "$JARS/regen.txt" \
+ && curl -s -c "$JARS/regen.txt" -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}' >/dev/null \
+ && SID1=$(awk '/sid/{print $7}' "$JARS/regen.txt") \
+ && curl -s -b "$JARS/regen.txt" -c "$JARS/regen.txt" -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}' >/dev/null \
+ && SID2=$(awk '/sid/{print $7}' "$JARS/regen.txt") \
+ && [ "$SID1" != "$SID2" ] && echo "PASS: sid regenerated" || echo "FAIL: sid reused"
 ```
 
-Expected: `PASS: sid regenerated`. A reused identifier means `regenerate()` was skipped and session
-fixation is possible.
+Expected: `PASS: sid regenerated`. A reused identifier means `regenerate()` was skipped, or that
+`userId` was written onto the pre-regeneration session object — either way session fixation is
+possible.
+
+Confirm the old row is gone, not merely orphaned:
+
+```bash
+cd "$WT/apps/api" && node -e "const D=require('better-sqlite3');const db=new D(process.env.DB);console.log('session rows:',db.prepare('SELECT COUNT(*) AS n FROM sessions').get().n);db.close()"
+```
+
+Expected: `1` — `regenerate()` destroyed the previous session before creating the new one.
 
 ## 6. Authenticated and unauthenticated /auth/me (spec FR-016, FR-021)
+
+Fresh session for this check:
+
+```bash
+rm -f "$JARS/me.txt" && curl -s -c "$JARS/me.txt" -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}' >/dev/null && echo "logged in"
+```
 
 With the session:
 
 ```bash
-curl -i -b /tmp/jar.txt http://localhost:4000/auth/me
+curl -i -b "$JARS/me.txt" http://localhost:4000/auth/me
 ```
 
 Expected: `200`, `{"user":{"id":1,"email":"demo@tentwenty.local"}}`.
@@ -186,14 +252,10 @@ Expected: `401`. The signature check rejects it before any database lookup.
 
 ## 7. Sessions survive an API restart (spec FR-012, SC-004)
 
-With the session from § 5 still in `/tmp/jar.txt`, stop the API (`Ctrl+C`) and start it again:
+Uses the `$JARS/me.txt` session from § 6, which is still valid. Restart the API, then:
 
 ```bash
-pnpm --filter api dev
-```
-
-```bash
-curl -i -b /tmp/jar.txt http://localhost:4000/auth/me
+curl -i -b "$JARS/me.txt" http://localhost:4000/auth/me
 ```
 
 Expected: still `200`, same user, **no re-login**. This is the check that proves the session lives in
@@ -201,25 +263,35 @@ SQLite rather than in process memory. If it returns 401, the store is not being 
 
 ## 8. Session expiry (spec FR-013, US3 scenario 6)
 
-Restart the API with a short TTL, in its own shell:
+`SESSION_TTL_HOURS` has a floor of 1 hour, so rather than waiting, this check ages the row directly in
+the **verification** database and confirms the API honours it.
+
+Fresh session, kept separate from every other check because this one destroys it:
 
 ```bash
-cd apps/api && SESSION_TTL_HOURS=1 pnpm start
+rm -f "$JARS/exp.txt" \
+ && curl -s -c "$JARS/exp.txt" -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}' >/dev/null \
+ && curl -s -o /dev/null -w 'before expiry: %{http_code}\n' -b "$JARS/exp.txt" http://localhost:4000/auth/me
 ```
 
-`SESSION_TTL_HOURS` is bounded at a minimum of 1 hour, so rather than waiting, expire the row
-directly and confirm the API honours it:
+Age **only this session's row**, identified by the `sid` in its own jar — not every row in the table:
 
 ```bash
-cd /tmp && rm -f exp.txt && curl -s -c exp.txt -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}' >/dev/null && curl -s -o /dev/null -w 'before expiry: %{http_code}\n' -b exp.txt http://localhost:4000/auth/me
+cd "$WT/apps/api" && SID=$(awk '/sid/{print $7}' "$JARS/exp.txt") node -e "
+const D=require('better-sqlite3');
+const db=new D(process.env.DB);
+// The cookie value is 's:<sid>.<signature>', URL-encoded; the stored key is the bare sid.
+const raw=decodeURIComponent(process.env.SID).replace(/^s:/,'').split('.')[0];
+console.log('rows aged:', db.prepare('UPDATE sessions SET expires_at = 1 WHERE sid = ?').run(raw).changes);
+db.close();
+"
 ```
 
-```bash
-cd /Users/ammaralhasan/Documents/tentwenty-test/apps/api && node -e "const D=require('better-sqlite3');const db=new D('data/margin.sqlite');console.log('rows aged:',db.prepare('UPDATE sessions SET expires_at = 1').run().changes);db.close()"
-```
+Expected: `rows aged: 1`. If it reports `0`, the `sid` extraction is wrong — check it before
+concluding anything about expiry.
 
 ```bash
-curl -s -o /dev/null -w 'after expiry:  %{http_code}\n' -b /tmp/exp.txt http://localhost:4000/auth/me
+curl -s -o /dev/null -w 'after expiry:  %{http_code}\n' -b "$JARS/exp.txt" http://localhost:4000/auth/me
 ```
 
 Expected: `before expiry: 200`, then `after expiry: 401`.
@@ -227,22 +299,26 @@ Expected: `before expiry: 200`, then `after expiry: 401`.
 Confirm the expired row was removed rather than left to accumulate (spec FR-013):
 
 ```bash
-cd apps/api && node -e "const D=require('better-sqlite3');const db=new D('data/margin.sqlite');console.log('expired rows remaining:',db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE expires_at <= ?').get(Date.now()).n);db.close()"
+cd "$WT/apps/api" && node -e "const D=require('better-sqlite3');const db=new D(process.env.DB);console.log('expired rows remaining:',db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE expires_at <= ?').get(Date.now()).n);db.close()"
 ```
 
 Expected: `0`.
 
 ## 9. Logout invalidates the session server-side (spec FR-017, FR-018, SC-005)
 
-Log in fresh and **capture the raw cookie value before logging out** — this is the point of the
+Fresh session, and **capture the raw cookie value before logging out** — this is the point of the
 check; clearing the browser's copy proves nothing.
 
 ```bash
-cd /tmp && rm -f out.txt && curl -s -c out.txt -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}' >/dev/null && CAPTURED=$(grep sid out.txt | awk '{print $7}') && echo "captured: ${CAPTURED:0:12}..."
+rm -f "$JARS/out.txt" \
+ && curl -s -c "$JARS/out.txt" -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}' >/dev/null \
+ && CAPTURED=$(awk '/sid/{print $7}' "$JARS/out.txt") && echo "captured: ${CAPTURED:0:12}..."
 ```
 
 ```bash
-cd /tmp && CAPTURED=$(grep sid out.txt | awk '{print $7}') && curl -si -b out.txt -X POST http://localhost:4000/auth/logout -H 'Origin: http://localhost:3000' | head -1 && curl -s -o /dev/null -w 'replayed captured sid: %{http_code}\n' -H "Cookie: sid=$CAPTURED" http://localhost:4000/auth/me
+CAPTURED=$(awk '/sid/{print $7}' "$JARS/out.txt") \
+ && curl -si -b "$JARS/out.txt" -X POST http://localhost:4000/auth/logout -H 'Origin: http://localhost:3000' | head -1 \
+ && curl -s -o /dev/null -w 'replayed captured sid: %{http_code}\n' -H "Cookie: sid=$CAPTURED" http://localhost:4000/auth/me
 ```
 
 Expected: `HTTP/1.1 204 No Content`, then `replayed captured sid: 401`.
@@ -261,7 +337,7 @@ Expected: `204`, not `401`.
 Confirm the row is gone from storage:
 
 ```bash
-cd apps/api && node -e "const D=require('better-sqlite3');const db=new D('data/margin.sqlite');console.log('sessions:',db.prepare('SELECT COUNT(*) AS n FROM sessions').get().n);db.close()"
+cd "$WT/apps/api" && node -e "const D=require('better-sqlite3');const db=new D(process.env.DB);console.log('sessions:',db.prepare('SELECT COUNT(*) AS n FROM sessions').get().n);db.close()"
 ```
 
 ## 10. Cookie, CORS, and CSRF behaviour (spec US5, FR-024, FR-025, SC-009)
@@ -302,17 +378,22 @@ curl -i -X POST http://localhost:4000/auth/login -H 'Origin: http://evil.example
 Expected: `403` with `"message":["Request origin is not allowed"]`, and **no** `Set-Cookie`. The
 refusal must happen whether the credentials were right or wrong.
 
-```bash
-curl -i -b /tmp/jar.txt -X POST http://localhost:4000/auth/logout -H 'Origin: http://evil.example'
-```
-
-Expected: `403`, and the session must still work afterwards:
+Now the forged-logout case. It needs a **fresh, valid** session — §§ 8 and 9 both ended theirs, so
+reusing one of those would prove nothing:
 
 ```bash
-curl -s -o /dev/null -w 'session still valid: %{http_code}\n' -b /tmp/jar.txt http://localhost:4000/auth/me
+rm -f "$JARS/csrf.txt" \
+ && curl -s -c "$JARS/csrf.txt" -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}' >/dev/null \
+ && curl -s -o /dev/null -w 'baseline (must be 200): %{http_code}\n' -b "$JARS/csrf.txt" http://localhost:4000/auth/me
 ```
 
-Expected: `200` — the forged logout changed nothing.
+```bash
+curl -s -o /dev/null -w 'forged logout: %{http_code}\n' -b "$JARS/csrf.txt" -X POST http://localhost:4000/auth/logout -H 'Origin: http://evil.example' \
+ && curl -s -o /dev/null -w 'session still valid: %{http_code}\n' -b "$JARS/csrf.txt" http://localhost:4000/auth/me
+```
+
+Expected: `baseline (must be 200): 200`, then `forged logout: 403`, then
+`session still valid: 200` — the forged logout changed nothing.
 
 ### CSRF — a safe method from a foreign origin is not blocked by the guard
 
@@ -334,33 +415,71 @@ document.cookie
 Expected: the `sid` cookie does **not** appear — `HttpOnly` hides it. Confirm it exists in DevTools →
 Application → Cookies → `http://localhost:4000`, with `HttpOnly` ✓ and `SameSite=Lax`.
 
-### Production cookie attributes (spec SC-007)
+### Production behaviour (spec SC-007) — what is verifiable here, and what is deferred
 
-`Secure` is conditional, so verify the production branch without deploying:
+Two production properties, and only one of them can be observed over HTTP.
 
-```bash
-cd apps/api && NODE_ENV=production SESSION_SECRET="$(openssl rand -base64 48)" pnpm start
-```
+**Verifiable now — production refuses to start on the shipped development secret:**
 
 ```bash
-curl -si -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}' | grep -i '^set-cookie'
-```
-
-Expected: the `Set-Cookie` now includes `Secure`. (The login itself will fail with 401 against a fresh
-production database, since no demo user is seeded there — that is FR-028 working. Use the existing
-development database file to see the cookie, or accept the 401 and read the attributes from a
-`Set-Cookie` that is not sent — in which case confirm `Secure` by inspecting the configured value
-instead.)
-
-Confirm production refuses to start on the shipped development secret:
-
-```bash
-cd apps/api && NODE_ENV=production pnpm start; echo "exit=$?"
+cd "$WT/apps/api" && NODE_ENV=production DATABASE_PATH=./data/verify-be02.sqlite pnpm start; echo "exit=$?"
 ```
 
 Expected: startup aborts non-zero with a message naming `SESSION_SECRET`.
 
-## 11. Rate limiting on login (spec FR-010, US2 scenario 5)
+**Verifiable now — `secure: true` is actually in effect:** start with a real secret and log in over
+HTTP.
+
+```bash
+cd "$WT/apps/api" && NODE_ENV=production SESSION_SECRET="$(openssl rand -base64 48)" DATABASE_PATH=./data/verify-be02.sqlite pnpm start
+```
+
+```bash
+curl -si -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}' | grep -iE '^(HTTP|set-cookie)'
+```
+
+Expected: **no `Set-Cookie` header at all.** That absence *is* the evidence — the official
+documentation states that when `secure` is set and the site is accessed over HTTP, "the cookie will
+not be set". A `Set-Cookie` appearing here would mean `secure` is **not** being applied in production.
+
+> Do **not** expect to see the literal `Secure` attribute in this check. Over plain HTTP there is no
+> `Set-Cookie` header to read it from. Expecting one is a test that a correct implementation fails.
+
+The login will also return `401` here if the verification database has no demo user for this
+environment — the seed is production-inert by FR-028, which is § 11's check, not a fault.
+
+**Deferred — observing the literal `Secure` attribute on the wire.** This requires an HTTPS origin,
+which this project does not have and the assessment does not ask for. It is recorded as deferred
+rather than faked. When an HTTPS environment exists, the check is the § 5 `Set-Cookie` grep against
+an `https://` URL, expecting `Secure` alongside `HttpOnly` and `SameSite=Lax`.
+
+**After this section, restart the API in its normal development mode** before continuing:
+
+```bash
+cd "$WT/apps/api" && DATABASE_PATH=./data/verify-be02.sqlite pnpm dev
+```
+
+## 11. Demo seed is production-inert (spec FR-028)
+
+Against a separate, empty database so the development seed is not mistaken for a production one:
+
+```bash
+cd "$WT/apps/api" && rm -f ./data/verify-prod.sqlite* && NODE_ENV=production SESSION_SECRET="$(openssl rand -base64 48)" DATABASE_PATH=./data/verify-prod.sqlite pnpm start
+```
+
+Stop it, then:
+
+```bash
+cd "$WT/apps/api" && node -e "const D=require('better-sqlite3');const db=new D('./data/verify-prod.sqlite');console.log('users in production db:',db.prepare('SELECT COUNT(*) AS n FROM users').get().n);db.close()"
+```
+
+Expected: `0` — no demo user was created.
+
+```bash
+cd "$WT/apps/api" && rm -f ./data/verify-prod.sqlite* && echo "production probe database removed"
+```
+
+## 12. Rate limiting on login (spec FR-010, US2 scenario 5)
 
 Restart the API to clear the in-memory window, then send eleven failures:
 
@@ -379,44 +498,60 @@ curl -si -X POST http://localhost:4000/auth/login -H 'Content-Type: application/
 Confirm a *correct* password is not counted against the limit (`skipSuccessfulRequests`): restart the
 API, log in successfully fifteen times, and observe `200` every time.
 
-## 12. Static checks
+```bash
+for i in $(seq 1 15); do printf '%2d: ' "$i"; curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}'; done
+```
+
+## 13. Static checks
 
 These are the **only** automated gates in this app. All three must exit 0.
 
 ```bash
-pnpm --filter api lint
+cd "$WT" && pnpm --filter api lint
 ```
 
 ```bash
-cd apps/api && npx tsc --noEmit -p tsconfig.json
+cd "$WT/apps/api" && npx tsc --noEmit -p tsconfig.json
 ```
 
 ```bash
-pnpm --filter api build
+cd "$WT" && pnpm --filter api build
 ```
 
-## 13. Scope checks
+## 14. Scope checks
 
 Frontend untouched (spec FR-031, SC-011):
 
 ```bash
-git status --short apps/web
+cd "$WT" && git status --short apps/web
 ```
 
 Expected: empty.
 
+**No verification artefact was left behind or committed:**
+
+```bash
+cd "$WT" && git status --short && echo "--- verification databases (must be ignored, never tracked) ---" && git ls-files apps/api/data/
+```
+
+Expected: `git status` shows no `verify-be02.sqlite`, and `git ls-files apps/api/data/` lists nothing.
+
+```bash
+rm -f "$DB" "$DB-wal" "$DB-shm" && rm -rf "$JARS" && echo "verification artefacts cleaned up"
+```
+
 No test infrastructure was introduced (spec FR-033, SC-012):
 
 ```bash
-git ls-files apps/api | grep -Ei '(spec|test)\.ts$|__tests__|vitest|jest' || echo "no test files — correct"
+cd "$WT" && git ls-files apps/api | grep -Ei '(spec|test)\.ts$|__tests__|vitest|jest' || echo "no test files — correct"
 ```
 
 ```bash
-grep -Ei '"(vitest|jest|supertest|@nestjs/testing|ts-jest)"' apps/api/package.json || echo "no test dependencies — correct"
+cd "$WT" && grep -Ei '"(vitest|jest|supertest|@nestjs/testing|ts-jest)"' apps/api/package.json || echo "no test dependencies — correct"
 ```
 
 ```bash
-grep -E '"test' apps/api/package.json || echo "no test scripts — correct"
+cd "$WT" && grep -E '"test' apps/api/package.json || echo "no test scripts — correct"
 ```
 
 Expected: all three report "correct".
@@ -424,7 +559,7 @@ Expected: all three report "correct".
 No debug or test-only route was added (spec FR-033):
 
 ```bash
-grep -rnE "@(Get|Post|Put|Patch|Delete)\(" apps/api/src/
+cd "$WT" && grep -rnE "@(Get|Post|Put|Patch|Delete)\(" apps/api/src/
 ```
 
 Expected: exactly four routes — `health`, `login`, `me`, `logout`. Nothing else.

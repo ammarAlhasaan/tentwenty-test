@@ -72,8 +72,13 @@
   guard is the obvious thing to do and would violate Constitution Principle II. The current-user
   endpoint is the guard's real first consumer, so no placeholder is needed.
 
-- **One open decision is carried into planning, not resolved here** — how the demo user is created
-  (seeded at startup vs. an explicit command). The spec states the *requirement* (FR-027, FR-028: one
-  documented way, no SQL, idempotent, not in production) and leaves the mechanism to
-  [research.md](../research.md) Decision 6, which records the trade-off for the reviewer. Two further
-  open questions in research § 5 concern implementation risk, not requirements.
+- **Open decisions, resolved at review on 2026-09-10.** The demo user is seeded at first local start;
+  session lifetime is 12 hours with a sliding window; the custom session store is approved on condition
+  that callbacks, errors and expiry are handled explicitly, with no line-count constraint. The spec
+  itself states only the *requirements* (FR-027, FR-028) and leaves the mechanism to
+  [research.md](../research.md) Decision 6. One implementation risk remains open — `express-session` on
+  Express 5 is untested upstream — and is gated by task T012 before any dependent work proceeds.
+
+- **Verification must not touch project data.** Every check in [quickstart.md](../quickstart.md) runs
+  against a dedicated `verify-be02.sqlite` inside this worktree, with absolute paths and a fresh
+  session per scenario. No check reads, writes, or deletes `margin.sqlite`.

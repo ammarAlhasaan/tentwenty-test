@@ -11,7 +11,7 @@
 Put a login boundary in front of the API and give BE-03 one reusable way to require it.
 
 `express-session` — the middleware the NestJS documentation prescribes — holds session state on the
-server, backed by a ~50-line store over the `better-sqlite3` connection BE-01 already opens, so
+server, backed by a small store over the `better-sqlite3` connection BE-01 already opens, so
 sessions survive a restart in the one database file the project already has. Passwords are verified
 with Argon2id through `@node-rs/argon2`, which ships prebuilt binaries and so keeps BE-01's promise
 that no compiler toolchain is needed. Login is rate-limited by `express-rate-limit`, because no
@@ -59,7 +59,7 @@ no `--force` / `--legacy-peer-deps`; no Swagger; pnpm and the existing scaffold 
 |---|---|
 | **I. Simple, conventional code** | ✅ Nest module / controller / service / guard, plus `app.use()` middleware in `main.ts` — the arrangement the NestJS session documentation shows. The one custom piece, the session store, implements a documented third-party interface rather than replacing a framework feature |
 | **II. No speculative structure** | ✅ No repository, base class, single-implementation interface, or barrel file. `auth/` holds seven files, each required by a numbered requirement. No dummy protected endpoint (FR-022). `all`/`length`/`clear` are left off the store because nothing needs them |
-| **III. Comments explain the non-obvious** | ✅ Comments are budgeted for exactly five places: why `regenerate` precedes assigning `userId`, why the `Origin` check permits a missing `Origin`, why `secure` is conditional, why the demo seed is gated on `NODE_ENV`, and why `SameSite=Lax` works across ports |
+| **III. Comments explain the non-obvious** | ✅ Comments go where a reader would otherwise be misled — the regenerate-then-assign order, why the `Origin` check permits a missing `Origin`, why `secure` is conditional, why the demo seed is gated on `NODE_ENV`, why `SameSite=Lax` works across ports. No target count: comment where it earns its place, nowhere else |
 | **IV. HTTP-only boundary** | ✅ No package, type, or schema is shared with `apps/web`. The contract is published as documentation in [contracts/auth.md](./contracts/auth.md) for the frontend to duplicate |
 | **V. One side per spec** | ✅ `apps/api` only. FR-031 forbids touching `apps/web`, and Decision 5 was chosen partly because the alternative would have required a frontend change |
 | **VI. One spec at a time** | ✅ BE-01 is complete and merged at `ad9f520`. No BE-03 code is written here — the guard is delivered, but applying it to a business endpoint is BE-03's work |
@@ -151,9 +151,28 @@ request is refused as 403 without revealing whether a session was valid; global 
    fixed dummy hash anyway**, so a missing account and a wrong password take comparable time.
 4. Either failure → `UnauthorizedException('Invalid email or password')`. One message, one code path,
    so FR-008's byte-identical requirement holds by construction rather than by care.
-5. `await session.regenerate()` — a new `sid` before any user data is attached, which is what defeats
-   session fixation (FR-009). Only then `req.session.userId = user.id`.
-6. `await session.save()`, then return `{ user: { id, email } }`.
+5. **Regenerate, then attach.** `req.session.regenerate(cb)` issues a new `sid` before any user data
+   exists on the session — that ordering is what defeats session fixation (FR-009).
+6. **Attach onto the new session object.** `regenerate` does not mutate the old session in place: the
+   official documentation states that once it completes, "a new SID and `Session` instance will be
+   initialized at `req.session`". So `req.session.userId = user.id` must read `req.session` *after*
+   the callback fires. A reference captured beforehand — including an injected `@Session()` parameter
+   — still points at the discarded object, which would leave the new session anonymous and make
+   `/auth/me` return 401 right after a "successful" login.
+7. `req.session.save(cb)`, then return `{ user: { id, email } }`.
+
+`regenerate`, `save` and `destroy` are **callback-based; none of them returns a promise**, so
+`await session.regenerate()` awaits `undefined` and proceeds too early. Each is wrapped in a small
+promise at the call site:
+
+```ts
+await new Promise<void>((resolve, reject) =>
+  req.session.regenerate((err) => (err ? reject(err) : resolve())),
+);
+req.session.userId = user.id;   // the NEW session
+```
+
+A rejection propagates to BE-01's filter as the generic 500.
 
 ### The guard, and how BE-03 will use it
 
@@ -173,7 +192,15 @@ placeholder endpoint is added to demonstrate it (FR-022).
 ### Session store
 
 Implements `get`, `set`, `destroy`, `touch` — the required three plus the one `rolling: true` needs.
-`all`, `length`, `clear` are omitted deliberately. Expired rows are deleted opportunistically: `get`
+`all`, `length`, `clear` are omitted deliberately. It is written at whatever length reads clearly;
+there is no line budget on it.
+
+The contract is callback-based and is honoured exactly: `get` calls back `(null, null)` when the
+session is absent **or expired** — absence is not an error — while `set`, `destroy` and `touch` call
+back with an error argument only. `better-sqlite3` is synchronous and throws, so each method body is
+wrapped in `try/catch` and the caught error is handed to the callback rather than being allowed to
+escape the store, where it would bypass the request's error path. Deleting a row that is already gone
+is a success. A `data` column that fails to parse is treated as not-found rather than thrown. Expired rows are deleted opportunistically: `get`
 deletes a row it finds expired and reports no session, and a single `DELETE FROM sessions WHERE
 expires_at <= ?` sweep runs at startup. No timer, no cron, no background job.
 
@@ -184,8 +211,8 @@ expires_at <= ?` sweep runs at startup. No timer, no cron, no background job.
 | name | `sid` | Shorter than the default `connect.sid`, and does not advertise the middleware |
 | `httpOnly` | `true` | FR-014 — unreachable from page script |
 | `sameSite` | `'lax'` | Blocks cross-site unsafe methods. Works across ports because SameSite is scoped to the registrable domain, so `localhost:3000` → `localhost:4000` is same-site |
-| `secure` | `NODE_ENV === 'production'` | Always-on would make local sign-in over plain HTTP impossible, which the brief requires |
-| `maxAge` | `SESSION_TTL_HOURS × 3600 × 1000` | FR-013 |
+| `secure` | `NODE_ENV === 'production'` | Always-on would make local sign-in impossible: with `secure` set and the site served over HTTP, the cookie is not set at all. The brief requires the app to run locally over plain HTTP. Observing the literal `Secure` attribute therefore needs an HTTPS origin and is deferred (quickstart § 10) |
+| `maxAge` | `SESSION_TTL_HOURS × 3600 × 1000` | FR-013. Note this emits an **`Expires`** attribute, not a literal `Max-Age` header — `maxAge` is documented as the value used *to calculate* `Expires` from the current server time |
 | `path` | `'/'` | Sent to every endpoint, including future BE-03 routes |
 
 With `rolling: true`, an active session's expiry slides forward on each response; `resave: false` and
@@ -195,7 +222,7 @@ With `rolling: true`, an active session's expiry slides forward on each response
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|--------------------------------------|
-| A hand-written `express-session` store (~50 lines) instead of a published one — arguably against Principle VII | Sessions must persist in **the existing** SQLite file through **the existing** `DatabaseService` (FR-012, FR-032), and the store contract is four small methods over `db.prepare()` | `connect-sqlite3` is maintained but drives the **`sqlite3`** package — a second native driver and a second database file, which is more complexity than it removes. `better-sqlite3-session-store` uses the right driver but is **`GPL-3.0-only`**, a licensing commitment not to make silently on a submitted take-home, and has been unpublished since 2022 pinning `date-fns@2.16.1`. `connect-better-sqlite3` requires `better-sqlite3@^7` against the installed 13.0.3. Full evidence: research Decision 2 |
+| A hand-written `express-session` store instead of a published one — arguably against Principle VII | Sessions must persist in **the existing** SQLite file through **the existing** `DatabaseService` (FR-012, FR-032), and the store contract is four callback-based methods over `db.prepare()` | `connect-sqlite3` is maintained but drives the **`sqlite3`** package — a second native driver and a second database file, which is more complexity than it removes. `better-sqlite3-session-store` uses the right driver but is **`GPL-3.0-only`**, a licensing commitment not to make silently on a submitted take-home, and has been unpublished since 2022 pinning `date-fns@2.16.1`. `connect-better-sqlite3` requires `better-sqlite3@^7` against the installed 13.0.3. Full evidence: research Decision 2 |
 
 Two further deviations were considered and are **not** violations:
 
@@ -217,7 +244,7 @@ No automated tests (FR-033). The gates are:
 | Lint | `pnpm --filter api lint` | exit 0 |
 | Types | `cd apps/api && npx tsc --noEmit -p tsconfig.json` | exit 0 |
 | Build | `pnpm --filter api build` | exit 0 |
-| Behaviour | [quickstart.md](./quickstart.md) §§ 1–11 | Every check as documented |
+| Behaviour | [quickstart.md](./quickstart.md) §§ 1–14 | Every check as documented |
 | Frontend untouched | `git status --short apps/web` | empty |
 
 Nothing in the API is added to make these possible: no debug route, no test-only endpoint, no

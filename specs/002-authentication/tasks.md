@@ -100,10 +100,27 @@ All paths are relative to the repository root. Backend only: `apps/api/`. **No t
 **Goal**: a correct email and password yield a session that survives a restart.
 
 - [ ] **T013** [US1] Create `apps/api/src/auth/sqlite-session.store.ts`: an `express-session` `Store`
-      subclass over `DatabaseService`, implementing `get`, `set`, `destroy`, `touch` only. `get`
-      deletes a row it finds expired and calls back with no session.
+      subclass over `DatabaseService`, implementing `get`, `set`, `destroy`, `touch` only.
       **Do not** implement `all`, `length`, or `clear` — nothing needs them (Constitution
-      Principle II).
+      Principle II). Write it at whatever length is clear; there is no line budget.
+
+      The store contract is callback-based, and every method must honour it exactly
+      ([official docs](https://expressjs.com/en/resources/middleware/session/)):
+
+      - `get(sid, cb)` → `cb(error, session)`. **Not found is not an error**: call `cb(null, null)`.
+        A row whose `expires_at` has passed counts as not found — delete it, then `cb(null, null)`.
+      - `set(sid, session, cb)` → `cb(error)`. Upsert the row; derive `expires_at` from
+        `session.cookie.expires` when present, else from `maxAge`, else the configured TTL.
+      - `destroy(sid, cb)` → `cb(error)`. Deleting a row that does not exist is a success, not an
+        error.
+      - `touch(sid, session, cb)` → `cb(error)`. Move `expires_at` forward only; write no other
+        column.
+
+      `better-sqlite3` is synchronous and throws, so wrap each body in `try/catch` and pass the
+      caught error to the callback — **never let it propagate out of the store**, which would escape
+      the request's error path entirely. Never call a callback twice, and never call one
+      synchronously *and* asynchronously on different paths. `JSON.parse` of a corrupt `data` column
+      must be caught and treated as not-found rather than thrown.
 - [ ] **T014** [US1] In `apps/api/src/main.ts`, replace T012's temporary wiring with the real
       `app.use(session({...}))`: `name: 'sid'`, the store from T013, `secret` and cookie `maxAge` from
       `ConfigService`, `resave: false`, `saveUninitialized: false`, `rolling: true`, and the cookie
@@ -127,11 +144,27 @@ All paths are relative to the repository root. Backend only: `apps/api/`. **No t
       `demo-password-2026` with `argon2.hash` and insert `demo@tentwenty.local`
       ([data-model.md](./data-model.md) § Demo user). Log the **email only** — never the password.
 - [ ] **T020** [US1] Create `apps/api/src/auth/auth.controller.ts` with `POST /auth/login`: validate,
-      verify, then `await session.regenerate()` **before** assigning `session.userId`, then
-      `await session.save()`, then return `{ user: { id, email } }` — id and email only, never the hash
-      and never the session identifier (spec FR-011). A comment records that the
-      regenerate-then-assign order is what defeats session fixation, since the two lines look
-      reorderable.
+      verify, regenerate the session, attach the user, save, and return `{ user: { id, email } }` —
+      id and email only, never the hash and never the session identifier (spec FR-011).
+
+      **`regenerate` and `save` are callback-based, not promise-returning**, and `regenerate`
+      replaces the session object. Per the
+      [official docs](https://expressjs.com/en/resources/middleware/session/), once `regenerate`
+      completes "a new SID and `Session` instance will be initialized at `req.session`". Two
+      consequences the implementation must respect:
+
+      1. `await session.regenerate()` is wrong — it awaits `undefined` and continues before
+         regeneration has finished. Wrap each call in a small promise, e.g.
+         `await new Promise<void>((res, rej) => req.session.regenerate(err => err ? rej(err) : res()))`,
+         and the same shape for `save`.
+      2. Assign onto **`req.session`** *after* regeneration — not onto a `session` reference captured
+         before it, and not onto an injected `@Session()` parameter bound to the old object. Writing
+         `userId` onto the pre-regeneration session leaves the new session anonymous and the old one
+         carrying the user: the login appears to succeed while `/auth/me` returns 401.
+
+      Take the request via `@Req()` so `req.session` is re-read after regeneration. Let a rejected
+      promise propagate — BE-01's filter turns it into the generic 500. A comment records why the
+      regenerate-then-assign order matters, since the two statements look reorderable.
 - [ ] **T021** [US1] Register `AuthModule` in `apps/api/src/app.module.ts`. Change nothing else in
       that file except T034's guard registration.
 - [ ] **T022** [US1] Manually verify [quickstart.md](./quickstart.md) §§ 5 and 7 — successful login,
@@ -157,7 +190,7 @@ All paths are relative to the repository root. Backend only: `apps/api/`. **No t
 - [ ] **T026** [US2] Make the limiter's rejection use BE-01's error shape, so a 429 carries the same
       five fields as every other error (spec SC-008) — via its `handler` option throwing Nest's
       `HttpException` with status 429, rather than letting the library write its own body.
-- [ ] **T027** [US2] Manually verify [quickstart.md](./quickstart.md) §§ 3, 4 and 11 — invalid input,
+- [ ] **T027** [US2] Manually verify [quickstart.md](./quickstart.md) §§ 3, 4 and 12 — invalid input,
       the `diff` proving the two refusals are identical, oversized password rejected promptly, and the
       429 after ten failures.
 
@@ -178,9 +211,12 @@ All paths are relative to the repository root. Backend only: `apps/api/`. **No t
       returning `{ user: { id, email } }` looked up from `session.userId`. **Add no other protected
       route** — no placeholder, no demo, no debug endpoint (spec FR-022).
 - [ ] **T030** [US3] Add `POST /auth/logout` to `auth.controller.ts`: destroy the server-side session,
-      clear the `sid` cookie, return **204**. It is **not** behind the guard, and returns 204 even
-      with no session (spec FR-019) — a comment records why, because putting it behind the guard is
-      the obvious-looking mistake.
+      clear the `sid` cookie, return **204**. `session.destroy(cb)` is callback-based like
+      `regenerate` — wrap it in a promise the same way (T020), and clear the cookie with
+      `res.clearCookie('sid', ...)` using the same `path`/`sameSite`/`secure` attributes it was set
+      with, or the browser keeps it. It is **not** behind the guard, and returns 204 even with no
+      session (spec FR-019) — a comment records why, because putting it behind the guard is the
+      obvious-looking mistake.
 - [ ] **T031** [US3] Confirm `GET /health` in `apps/api/src/app.controller.ts` is untouched and still
       public — the guard is applied per-route, never globally (spec FR-023).
 - [ ] **T032** [US3] Manually verify [quickstart.md](./quickstart.md) §§ 6, 8 and 9 — `/auth/me` with
@@ -219,18 +255,22 @@ All paths are relative to the repository root. Backend only: `apps/api/`. **No t
 
 **Goal**: a reviewer with a clean checkout can sign in using only the documentation.
 
-- [ ] **T037** [US4] Verify the seed is idempotent and production-inert: delete
-      `apps/api/data/margin.sqlite*`, start, confirm one user; restart, confirm still one user with
-      the same `id`; start with `NODE_ENV=production` against a fresh file and confirm **no** user is
-      created (spec FR-028).
+- [ ] **T037** [US4] Verify the seed is idempotent and production-inert, using the **verification**
+      databases only — `DATABASE_PATH=./data/verify-be02.sqlite` and `./data/verify-prod.sqlite` per
+      [quickstart.md](./quickstart.md) § Ground rules. **Never delete or modify
+      `apps/api/data/margin.sqlite`**: it is the project's own database and no verification step may
+      touch it. Reset the verification file, start, confirm one user; restart, confirm still one user
+      with the same `id`; then start with `NODE_ENV=production` against the separate production probe
+      file and confirm **no** user is created (spec FR-028). Confirm afterwards that no verification
+      database is tracked or left in `git status`.
 - [ ] **T038** [US4] Update `apps/api/README.md`: the demo credentials, the two new settings and the
       production caveat for `SESSION_SECRET`, the three endpoints, the session/cookie behaviour, and a
       note that schema changes require deleting the database file (there is no migration mechanism).
 - [ ] **T039** [US4] Update the root `README.md` with the demo credentials and a one-line "sign in
       with these" pointer, so the five-minute path in spec SC-001 does not require opening
       `apps/api/README.md` first.
-- [ ] **T040** [US4] Manually verify [quickstart.md](./quickstart.md) § 2 from a **deleted** database
-      file — including reading `password_hash` directly and confirming it starts `$argon2id$`.
+- [ ] **T040** [US4] Manually verify [quickstart.md](./quickstart.md) §§ 2 and 11 against the **verification** database
+      (never `margin.sqlite`) — including reading `password_hash` directly and confirming it starts `$argon2id$`.
 
 **Checkpoint**: all five user stories complete.
 
@@ -244,17 +284,19 @@ All paths are relative to the repository root. Backend only: `apps/api/`. **No t
 - [ ] **T042** Run `cd apps/api && npx tsc --noEmit -p tsconfig.json` — must exit 0. Report the real
       output.
 - [ ] **T043** Run `pnpm --filter api build` — must exit 0. Report the real output.
-- [ ] **T044** **Testing-scope audit.** Run [quickstart.md](./quickstart.md) § 13 and confirm all
+- [ ] **T044** **Testing-scope audit.** Run [quickstart.md](./quickstart.md) § 14 and confirm all
       three report "correct": no test file, no test dependency in `apps/api/package.json`, no test
       script. Also confirm `grep -rnE "@(Get|Post|Put|Patch|Delete)\(" apps/api/src/` returns exactly
       four routes — `health`, `login`, `me`, `logout` — proving no debug or test-only route was added.
-- [ ] **T045** Run `git status --short apps/web` — must be empty (spec FR-031, SC-011).
-- [ ] **T046** Execute [quickstart.md](./quickstart.md) §§ 1–11 end to end in one sitting against a
+- [ ] **T045** Run `git status --short apps/web` — must be empty (spec FR-031, SC-011). Also run
+      `git status --short` at the worktree root and confirm no verification database, cookie jar, or
+      other check artefact was left behind, and that `git ls-files apps/api/data/` lists nothing.
+- [ ] **T046** Execute [quickstart.md](./quickstart.md) §§ 1–12 end to end in one sitting against a
       freshly deleted database, and record the **real** output of every check, including any that
       fails (Constitution Principle VIII).
-- [ ] **T047** Comment audit: confirm comments exist only at the five budgeted places in
-      [plan.md](./plan.md) § Constitution Check, and that none restates what the code says
-      (Constitution Principle III).
+- [ ] **T047** Comment audit: confirm every comment explains a non-obvious decision and that none
+      restates what the code says (Constitution Principle III). There is **no** target count —
+      comment where a reader would otherwise be misled, and nowhere else.
 - [ ] **T048** Scope audit: confirm that none of registration, password reset, email verification,
       roles, permissions, OAuth, JWT/refresh tokens, remember-me, lockout, or MFA was implemented
       (spec FR-030), and that rate limiting is applied to the login route only.
@@ -301,7 +343,7 @@ a P1 or P2 requirement, but each can be reviewed on its own.
 
 - All 50 tasks checked.
 - T041–T043 exit 0, with their real output reported.
-- Every check in [quickstart.md](./quickstart.md) §§ 1–13 executed, with real output recorded.
+- Every check in [quickstart.md](./quickstart.md) §§ 1–14 executed, with real output recorded.
 - `apps/web` untouched.
 - No test file, framework, mock, fixture, test configuration, or test script anywhere in `apps/api`.
 - Open questions in [research.md](./research.md) § 5 resolved or explicitly carried forward.

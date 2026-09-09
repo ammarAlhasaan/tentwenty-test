@@ -88,6 +88,19 @@ own documented path is Constitution Principle I.
 `saveUninitialized: false`, `rolling: true`, `store`, and a `cookie` block of `httpOnly`, `sameSite`,
 `secure`, `maxAge`, `path`.
 
+**Two API facts the implementation must not get wrong**, both from the official documentation:
+
+- **`regenerate`, `save`, `destroy` and `reload` take callbacks and return nothing.** `await`-ing them
+  awaits `undefined` and continues early. Each is wrapped in a promise at the call site (plan
+  § Login). Only `touch()` is synchronous.
+- **`regenerate` replaces the session object**: "a new SID and `Session` instance will be initialized
+  at `req.session`". `userId` must be assigned to `req.session` read *after* the callback fires, never
+  to a reference captured before it.
+- **`cookie.maxAge` calculates `Expires`**, "taking the current server time and adding `maxAge`
+  milliseconds" — it does not emit a literal `Max-Age` header. Verification greps for `Expires`.
+- **`cookie.secure` over HTTP suppresses the cookie entirely** — with `secure` set and the site
+  accessed over HTTP, the cookie is not set. This shapes what quickstart § 10 can observe locally.
+
 **Sources**: <https://docs.nestjs.com/techniques/session> ·
 <https://github.com/expressjs/session> · <https://github.com/expressjs/session/blob/master/package.json>
 
@@ -95,8 +108,12 @@ own documented path is Constitution Principle I.
 
 ### Decision 2 — Session store: a small store over the existing `DatabaseService`
 
-**Decision**: write `apps/api/src/auth/sqlite-session.store.ts` — roughly 50 lines implementing
-`get`, `set`, `destroy` and `touch` against the `better-sqlite3` connection BE-01 already owns.
+**Decision**: write `apps/api/src/auth/sqlite-session.store.ts`, implementing `get`, `set`,
+`destroy` and `touch` against the `better-sqlite3` connection BE-01 already owns.
+
+**Approved by the reviewer on 2026-09-10**, on the condition that callbacks, error propagation and
+expiry are handled explicitly, and with **no line-count constraint** on the file. The requirements are
+written out in task T013 and in [plan.md](./plan.md) § Session store.
 
 **This is the one decision in BE-02 that adds code instead of a dependency, and it needs its
 justification stated plainly**: it is not to avoid a dependency. Both maintained candidates were
@@ -125,12 +142,24 @@ and it is not one to make silently on the owner's behalf. Independently of the l
 been published since **June 2022**, and it pins `date-fns@2.16.1` exactly — an odd, four-year-stale
 transitive dependency for what is date arithmetic on an expiry column.
 
-**Why the store is genuinely small**: the `express-session` store contract is fixed and narrow. Per
-the official README, only `get(sid, cb)`, `set(sid, session, cb)` and `destroy(sid, cb)` are
-**required**; `touch(sid, session, cb)` is *recommended* (and needed because Decision 1 sets
-`rolling: true`); `all`, `length` and `clear` are **optional** and BE-02 implements none of them,
-because nothing in the spec enumerates or counts sessions. Four small methods over
-`db.prepare(...).get/run` is not an abstraction layer — it is the adapter the contract asks for.
+**Why the store is a bounded piece of work**: the `express-session` store contract is fixed and
+narrow. Per the official documentation, only `get(sid, cb)`, `set(sid, session, cb)` and
+`destroy(sid, cb)` are **required**; `touch(sid, session, cb)` is *recommended* (and needed because
+Decision 1 sets `rolling: true`); `all`, `length` and `clear` are **optional** and BE-02 implements
+none of them, because nothing in the spec enumerates or counts sessions. Four callback-based methods
+over `db.prepare(...).get/run` is not an abstraction layer — it is the adapter the contract asks for.
+
+The contract is callback-based, and the details that must not be improvised:
+
+- `get(sid, cb)` calls back `(error, session)`. A missing session is **not** an error — it is
+  `cb(null, null)`. An expired row is treated the same way, after being deleted.
+- `set` / `destroy` / `touch` call back with an error argument only.
+- `better-sqlite3` is synchronous and throws. Every method body catches and forwards the error to its
+  callback instead of letting it escape the store, which would bypass the request's error path.
+- Destroying a row that is already gone is a success. A `data` column that fails to parse is treated
+  as not-found rather than thrown.
+
+**Source**: <https://expressjs.com/en/resources/middleware/session/>
 
 **Sources**: <https://github.com/expressjs/session#session-store-implementation> ·
 <https://github.com/rawberg/connect-sqlite3/blob/master/package.json> ·
@@ -342,25 +371,25 @@ app whose data is re-uploaded from spreadsheets, and documented in the README.
 | JWT / `@nestjs/jwt` | The spec requires server-side sessions that can be invalidated at logout (FR-017, FR-018). A stateless token cannot be invalidated without adding the session store back |
 | A migration framework | No deployed database to evolve; two tables that do not change |
 
-## 5. Open questions for the reviewer
+## 5. Open questions — resolved at review, 2026-09-10
 
-None of these block writing the implementation tasks; all three are recorded because a reviewer may
-reasonably decide differently.
+1. **Demo user seeded at first local start** (Decision 6) — **approved.** Seeding on first run against
+   an empty database, gated on `NODE_ENV !== 'production'`, is the mechanism. The rejected fallback
+   (a `"demo:user"` package script needing a build first) is recorded in Decision 6 and is not
+   pursued.
+2. **Session lifetime `SESSION_TTL_HOURS=12` with `rolling: true`** — **approved** as the default for
+   this project.
+3. **Custom session store** (Decision 2) — **approved**, conditional on explicit callback, error and
+   expiry handling, and with **no line-count constraint**. Both conditions are now written into
+   Decision 2 and task T013.
 
-1. **Demo user seeded at startup vs. an explicit command** (Decision 6). Seeding is the simplest
-   thing that works and needs no build step, at the cost of a fixed credential pair compiled into the
-   app behind a `NODE_ENV` guard. If a reviewer prefers an explicit action, the fallback is a
-   `"demo:user"` package script running `nest build && node dist/auth/seed-demo-user.js`. Changing
-   this affects T009 and T019 only.
-2. **`express-session` on Express 5 is unverified upstream** (Decision 1). No conflict is declared and
-   no breakage is reported, but the maintainers do not test it. T012 gates all later work on a real
-   smoke check. If it fails, the fallback — a ~60-line signed-cookie session middleware over the same
-   store — is a materially larger change and should come back for review rather than be written
-   silently.
-3. **Session lifetime defaults**: `SESSION_TTL_HOURS=12` with `rolling: true` (a sliding window that
-   refreshes on each request). Twelve hours means a reviewer who signs in in the morning is still
-   signed in after lunch. Both the number and the sliding behaviour are judgement calls, changeable in
-   one line of config.
+### Still open — one implementation risk
+
+**`express-session` on Express 5 is unverified upstream** (Decision 1). No peer conflict is declared
+and no breakage is reported, but the maintainers test against Express 4.17.3 and closed an Express 5
+bump unmerged. **T012 gates all later work on a real smoke check.** If it fails, the fallback — a
+signed-cookie session middleware over the same store — is a materially larger change and comes back
+for review rather than being written silently.
 
 ## 6. Testing posture
 
