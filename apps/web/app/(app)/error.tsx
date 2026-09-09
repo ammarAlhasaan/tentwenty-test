@@ -3,9 +3,6 @@
 import { useEffect } from "react";
 import { ErrorState } from "@/components/error-state";
 
-// Root boundary: uncaught rendering failures outside the application shell, and
-// failures in the (app) layout itself. Expected request failures are handled
-// where the request was made and never reach here.
 export default function ErrorPage({
   error,
   retry,
@@ -19,9 +16,5 @@ export default function ErrorPage({
 
   // The message is logged for the developer but not rendered: it can carry
   // internals a reader has no use for.
-  return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-16 sm:px-6">
-      <ErrorState onRetry={retry} />
-    </div>
-  );
+  return <ErrorState onRetry={retry} />;
 }
