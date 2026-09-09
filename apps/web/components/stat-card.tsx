@@ -20,7 +20,10 @@ export function StatCard({
         </CardDescription>
         <p
           className={cn(
-            "font-heading text-xl font-semibold tabular-nums 2xl:text-2xl",
+            // No responsive step-up: the page container is capped at
+            // max-w-7xl, so these cards are no wider at 2xl than at xl and a
+            // larger size would clip the longest currency figure.
+            "font-heading text-xl font-semibold tabular-nums",
             tone === "positive" && "text-positive",
             tone === "negative" && "text-negative"
           )}

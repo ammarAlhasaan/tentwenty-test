@@ -248,6 +248,10 @@ verify the error state by temporarily throwing from a page and confirming recove
 
 - **FR-023**: The application MUST NOT issue any HTTP request to the API, MUST NOT implement any
   calculation from the assessment's maths section, and MUST NOT implement authentication behaviour.
+  This extends to placeholder content: a derived figure — a ratio, a profit, a margin — MUST be
+  carried as a value in the sample data and merely formatted for display. The page MUST NOT
+  compute one, even from literals, because a formula written here is a second implementation of a
+  rule the API owns, and the two will drift.
 - **FR-024**: The change MUST be confined to `apps/web`, MUST NOT add shared code, types or schemas
   between the applications, and MUST NOT modify root configuration or the lockfile.
 - **FR-025**: No Zustand store may be introduced by this spec, because no shared UI state outlives

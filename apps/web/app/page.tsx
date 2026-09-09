@@ -10,23 +10,26 @@ import {
 } from "@/components/ui/table";
 import { formatCurrency, formatHours, formatPercent } from "@/lib/format";
 
-// Placeholder figures. They are literals here, deliberately not shaped like an
-// API response, so nothing downstream can mistake them for ingested data.
+// Placeholder figures. Every derived value — ratios, profit, margin — is a
+// literal here rather than something this page works out, because the API owns
+// the calculations. This page formats what it is given and nothing more.
 const headline = {
   totalHours: 61840,
   billableHours: 44120,
+  billableRatio: 0.7134,
   cost: 8420000,
   revenue: 10310000,
+  profit: 1890000,
   margin: 0.1833,
 };
 
 const projects = [
-  { ref: "TT-1042", name: "Meridian rebrand", price: 480000, hours: 2140, cost: 391000 },
-  { ref: "TT-1078", name: "Harbour app build", price: 1250000, hours: 6380, cost: 1104000 },
-  { ref: "TT-1091", name: "Nova commerce platform", price: 890000, hours: 5210, cost: 963000 },
-  { ref: "TT-1103", name: "Atlas annual report", price: 210000, hours: 940, cost: 168000 },
-  { ref: "TT-1117", name: "Kestrel campaign site", price: 365000, hours: 1780, cost: 302000 },
-  { ref: "TT-1124", name: "Orient hosting retainer", price: 144000, hours: 610, cost: 98000 },
+  { ref: "TT-1042", name: "Meridian rebrand", price: 480000, hours: 2140, cost: 391000, margin: 0.1854 },
+  { ref: "TT-1078", name: "Harbour app build", price: 1250000, hours: 6380, cost: 1104000, margin: 0.1168 },
+  { ref: "TT-1091", name: "Nova commerce platform", price: 890000, hours: 5210, cost: 963000, margin: -0.082 },
+  { ref: "TT-1103", name: "Atlas annual report", price: 210000, hours: 940, cost: 168000, margin: 0.2 },
+  { ref: "TT-1117", name: "Kestrel campaign site", price: 365000, hours: 1780, cost: 302000, margin: 0.1726 },
+  { ref: "TT-1124", name: "Orient hosting retainer", price: 144000, hours: 610, cost: 98000, margin: 0.3194 },
 ];
 
 export default function DashboardPage() {
@@ -60,7 +63,7 @@ export default function DashboardPage() {
         <StatCard
           label="Billable hours"
           value={formatHours(headline.billableHours)}
-          hint={`${formatPercent(headline.billableHours / headline.totalHours)} of logged time`}
+          hint={`${formatPercent(headline.billableRatio)} of logged time`}
         />
         <StatCard label="Cost" value={formatCurrency(headline.cost)} />
         <StatCard label="Revenue" value={formatCurrency(headline.revenue)} />
@@ -68,7 +71,7 @@ export default function DashboardPage() {
           label="Margin"
           value={formatPercent(headline.margin)}
           tone={headline.margin >= 0 ? "positive" : "negative"}
-          hint={formatCurrency(headline.revenue - headline.cost)}
+          hint={formatCurrency(headline.profit)}
         />
       </div>
 
@@ -89,36 +92,32 @@ export default function DashboardPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {projects.map((project) => {
-                const margin = (project.price - project.cost) / project.price;
-
-                return (
-                  <TableRow key={project.ref}>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {project.ref}
-                    </TableCell>
-                    <TableCell className="font-medium">{project.name}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatCurrency(project.price)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatHours(project.hours)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatCurrency(project.cost)}
-                    </TableCell>
-                    <TableCell
-                      className={
-                        margin >= 0
-                          ? "text-right font-medium tabular-nums text-positive"
-                          : "text-right font-medium tabular-nums text-negative"
-                      }
-                    >
-                      {formatPercent(margin)}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+              {projects.map((project) => (
+                <TableRow key={project.ref}>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {project.ref}
+                  </TableCell>
+                  <TableCell className="font-medium">{project.name}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatCurrency(project.price)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatHours(project.hours)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatCurrency(project.cost)}
+                  </TableCell>
+                  <TableCell
+                    className={
+                      project.margin >= 0
+                        ? "text-right font-medium tabular-nums text-positive"
+                        : "text-right font-medium tabular-nums text-negative"
+                    }
+                  >
+                    {formatPercent(project.margin)}
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>

@@ -62,7 +62,7 @@ backend merge landing on `main` mid-implementation cannot make them read as fail
 | C4 | On `/projects`, check the Dashboard item | It is **not** marked current (the `/` match is exact) | ✅ on /projects only /projects is current |
 | C5 | Tab from the top of the page | Every nav item is reachable in reading order | ✅ header link → Dashboard → Projects → Productivity, in reading order |
 | C6 | Observe each focused element | A clearly visible focus indicator appears | ✅ `:focus-visible` matches; computed box-shadow `oklab(0.708 … / 0.5) 0 0 0 3px` |
-| C7 | Focus a nav item, press Enter | That route is navigated to | ⚠️ structural only — both are real `HTMLAnchorElement` with `href` and take focus, so Enter is browser-native; the harness's synthetic Enter did not trigger default activation |
+| C7 | Focus a nav item, press Enter | ✅ Enter on the focused Projects link navigated to /projects; title and `aria-current` followed. (An earlier report marked this unverified — that was my error: I sent the key name `Return`, not `Enter`.) |
 | C8 | Open `/does-not-exist` | A styled not-found page renders inside the shell with a way back to the dashboard | ✅ 404 page in shell with a working "Back to the dashboard" button |
 | C9 | Disable JavaScript, reload `/projects` | Heading, content and all four nav links are present and the links work | ✅ server HTML carries all four links, the h1, the empty state and aria-current |
 
@@ -76,6 +76,8 @@ Repeat on `/` (the table page) and on `/projects` (the empty-state page).
 | D2 | 768px | Navigation is in the header, fully operable, not covering content | ✅ rail from 768 (md); header row below it |
 | D3 | 375px | No horizontal document scrollbar; nothing clipped | ✅ documentElement scrollWidth 375 = clientWidth 375 |
 | D4 | 375px, on `/` | The table scrolls horizontally inside its own container while the page does not | ✅ table container 608 → 343, `overflow-x: auto`; page does not scroll |
+| D4a | 1536px | Headline figures are not clipped | ✅ after the `2xl` step-up was removed: longest value 153.6px in a 164.8px box |
+| D4b | 1024 / 1280 / 1920px | Headline figures not clipped; no page scroll | ✅ font stays 20px at every width; worst overflow −11.2px; document never exceeds its viewport |
 | D5 | 375px | Every nav item is still reachable, by touch and by keyboard | ✅ nav row scrolls 481 → 343, all four reachable |
 
 ## E. Empty states — User Story 4
@@ -135,9 +137,8 @@ behaviour of the scaffold, confirmed against the unmodified checkout in T003.
 
 ## Sign-off
 
-- [x] Every row above carries a real result. **Two rows are not passes** and are marked ⚠️:
-      B7 needs a second person, and C7 was verified structurally because the harness cannot
-      dispatch a native Enter activation. Neither was skipped silently.
+- [x] Every row above carries a real result. **One row is not a pass** and is marked ⚠️: B7 needs
+      a second person. C7 was initially reported unverified in error and has since passed.
 - [x] F2 and F6 confirmed: `git diff` empty for both files; no temporary verification edit remains.
 - [x] No missing dependency was found. `apps/web/package.json` and `pnpm-lock.yaml` are
       byte-identical to the pre-generation snapshot, so plan.md's "Coordination note" stays empty.
@@ -145,6 +146,15 @@ behaviour of the scaffold, confirmed against the unmodified checkout in T003.
 **Two defects were found by these checks and fixed** (commit `1f3f7e5`):
 
 1. The Revenue figure was clipped at the five-column breakpoint — `text-2xl` overflowed a card that
-   `Card` clips with `overflow-hidden`. Now `text-xl`, returning to `text-2xl` only at `2xl`.
+   `Card` clips with `overflow-hidden`.
 2. `animate-pulse` and the `transition-colors` utilities ignored `prefers-reduced-motion`. Now
    honoured once in the base layer.
+
+**A third was found in review and fixed** (see below): the first fix left a `2xl:text-2xl`
+step-up, which re-clipped *two* cards at 1536px. The page container is capped at `max-w-7xl`
+(1280px), so the cards are no wider at `2xl` than at `xl` and the step-up could never be safe. It
+is now a single size at every width.
+
+**Known tightness**: the longest sample value, `AED 10,310,000`, leaves 11.2px of headroom. A
+figure an order of magnitude larger would clip. The first spec that renders real amounts should
+re-check this row against actual magnitudes.
