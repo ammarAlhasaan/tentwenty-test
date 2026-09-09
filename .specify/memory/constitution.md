@@ -1,12 +1,10 @@
 <!--
 Sync Impact Report
-- Version change: none (unversioned template) → 1.0.0
-- Modified principles: none (initial ratification; all template placeholders replaced)
-- Added sections:
-  - Core Principles I–VIII
-  - Repository Boundaries
-  - Development Workflow
-  - Governance
+- Version change: 1.0.0 → 1.1.0
+- Modified principles:
+  - VI. One Spec At A Time → VI. One Spec Per Side At A Time (scope of the
+    serialisation rule narrowed from the whole repository to one application)
+- Added sections: none
 - Removed sections: none
 - Templates reviewed for consistency:
   - .specify/templates/plan-template.md — Constitution Check gate compatible, no edit needed
@@ -68,14 +66,22 @@ backend spec landing first and defining the HTTP contract the frontend spec cons
 Rationale: keeps each spec independently reviewable and keeps the HTTP contract explicit rather
 than emergent.
 
-### VI. One Spec At A Time
+### VI. One Spec Per Side At A Time
 
-Exactly one spec is implemented at a time. Its implementation MUST be complete, verified, and
-reviewed before the next spec's implementation begins. Planning artifacts for a later spec MAY be
-written earlier; code for a later spec MUST NOT be.
+At most one `apps/api` spec and one `apps/web` spec are implemented at any given time, and each
+MUST be implemented in its own git worktree on its own branch. Two specs on the *same* side MUST
+NOT overlap: the earlier one's implementation MUST be complete, verified, and reviewed before the
+next spec on that side begins. Planning artifacts for a later spec MAY be written earlier; code
+for a later spec MUST NOT be.
 
-Rationale: partial work across several specs cannot be reviewed or verified as a whole, and
-placeholder code written for a future spec is written without that spec's requirements.
+A frontend spec running in parallel with a backend spec MUST NOT depend on that backend spec's
+unlanded HTTP contract. Where it would, the integration is deferred to a later frontend spec and
+recorded as deferred in the plan.
+
+Rationale: Principles IV and V already guarantee that a frontend spec and a backend spec share no
+files and no code, so serialising them across the whole repository buys no reviewability — it only
+idles one side. Serialising *within* a side preserves the review checkpoint that matters, which is
+between two changes to the same application.
 
 ### VII. Libraries That Remove Complexity
 
@@ -139,4 +145,4 @@ Every spec's plan MUST include a Constitution Check. A deviation is allowed only
 recorded in that plan's Complexity Tracking table with the simpler alternative that was rejected
 and why. An unrecorded deviation is a defect and blocks review.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-09 | **Last Amended**: 2026-09-09
+**Version**: 1.1.0 | **Ratified**: 2026-09-09 | **Last Amended**: 2026-09-09
