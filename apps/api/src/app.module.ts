@@ -2,11 +2,14 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller.js';
+import { AnalyticsModule } from './analytics/analytics.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { HttpExceptionFilter } from './common/http-exception.filter.js';
 import { OriginCheckGuard } from './common/origin-check.guard.js';
 import { envSchema } from './config.js';
-import { DatabaseModule } from './database/database.module.js';
+import { PrismaModule } from './prisma/prisma.module.js';
+import { ImportsModule } from './imports/imports.module.js';
+import { SettingsModule } from './settings/settings.module.js';
 
 @Module({
   imports: [
@@ -15,8 +18,11 @@ import { DatabaseModule } from './database/database.module.js';
       cache: true,
       validationSchema: envSchema,
     }),
-    DatabaseModule,
+    PrismaModule,
     AuthModule,
+    SettingsModule,
+    ImportsModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [

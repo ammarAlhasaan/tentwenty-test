@@ -12,7 +12,7 @@ import { AuthService } from './auth.service.js';
 export class SessionAuthGuard implements CanActivate {
   constructor(private readonly auth: AuthService) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
     const userId = request.session?.userId;
 
@@ -22,7 +22,7 @@ export class SessionAuthGuard implements CanActivate {
     // than in each handler means every protected endpoint rejects that case
     // identically, instead of it depending on whether the handler happened to
     // look the user up.
-    const user = this.auth.findById(userId);
+    const user = await this.auth.findById(userId);
     if (!user) throw new UnauthorizedException();
 
     request.authUser = user;

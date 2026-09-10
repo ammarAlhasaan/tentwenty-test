@@ -22,9 +22,18 @@ The API needs an environment file before its first run:
 cp apps/api/.env.example apps/api/.env
 ```
 
-Every setting has a working local default, so no edits are needed. See
-[apps/api/README.md](apps/api/README.md) for the full list, the error-response shape, and database
-details.
+Every setting has a working local default, so no edits are needed.
+
+Then create the database schema:
+
+```bash
+pnpm --filter api db:deploy
+```
+
+If you already have a database from before Prisma was introduced, baseline it first so its data is
+kept: `pnpm --filter api db:adopt && pnpm --filter api db:deploy`. See
+[apps/api/README.md](apps/api/README.md) for the full settings list, the error-response shape, and
+database details.
 
 ## Run
 

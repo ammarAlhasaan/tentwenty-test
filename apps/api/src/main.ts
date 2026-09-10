@@ -5,8 +5,8 @@ import rateLimit from 'express-rate-limit';
 import session from 'express-session';
 import { AppModule } from './app.module.js';
 import { SESSION_COOKIE_NAME, sessionCookieOptions } from './auth/session-cookie.js';
-import { SqliteSessionStore } from './auth/sqlite-session.store.js';
-import { DatabaseService } from './database/database.service.js';
+import { PrismaSessionStore } from './auth/prisma-session.store.js';
+import { PrismaService } from './prisma/prisma.service.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -31,7 +31,7 @@ async function bootstrap() {
     session({
       name: SESSION_COOKIE_NAME,
       secret: config.getOrThrow<string>('SESSION_SECRET'),
-      store: new SqliteSessionStore(app.get(DatabaseService), ttlMs),
+      store: new PrismaSessionStore(app.get(PrismaService), ttlMs),
       resave: false,
       // Anonymous requests write no session row, so an unauthenticated caller
       // cannot fill the table by making requests.

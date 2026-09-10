@@ -9,8 +9,9 @@ cloud account, no API key, no paid service.
   Node 26 also works; both satisfy the repository's `engines.node` of `>=24.15.0`.
 - **pnpm 11.9.0** — `corepack enable`.
 
-No compiler toolchain is needed. `better-sqlite3` ships prebuilt N-API binaries and runs no build
-script on install.
+No compiler toolchain is needed. Prisma 7 runs the WASM query compiler through a driver adapter,
+so no database engine is downloaded, and `better-sqlite3` (which the adapter uses) ships prebuilt
+N-API binaries.
 
 ## Setup
 
@@ -24,7 +25,24 @@ pnpm install
 cp apps/api/.env.example apps/api/.env
 ```
 
-Every setting has a working local default, so the copied file needs no edits.
+Every setting has a working local default, so the copied file needs no edits. `pnpm install`
+generates the Prisma client automatically (`postinstall`).
+
+Then create the database schema:
+
+```bash
+pnpm --filter api db:deploy
+```
+
+**Upgrading a database created before Prisma** (one that already holds imported spreadsheets):
+mark the pre-Prisma schema as the baseline first, then apply the rest. Nothing is reset or
+recreated and every row is kept.
+
+```bash
+pnpm --filter api db:adopt && pnpm --filter api db:deploy
+```
+
+`pnpm --filter api db:status` reports which migrations a database has.
 
 ## Run
 
@@ -60,6 +78,7 @@ and a message naming the offending variable — there are no silent fallbacks.
 | `FRONTEND_ORIGIN` | `http://localhost:3000` | The single browser origin allowed to call this API, with credentials. `http`/`https` only, and normalised to a bare origin — `http://localhost:3000/` and `https://example.com/path` become `http://localhost:3000` and `https://example.com`, because that is the form a browser sends in `Origin` |
 | `SESSION_SECRET` | a development value | Signs the session cookie. Left unset in `.env.example` so the development default applies. **In production it must be set** to a real secret of at least 32 characters, or startup aborts: `openssl rand -base64 48` |
 | `SESSION_TTL_HOURS` | `12` | Session lifetime in hours (1–720). The window slides — it is refreshed on every response, so an active user is not signed out mid-session |
+| `MAX_UPLOAD_BYTES` | `10485760` (10 MB) | Largest spreadsheet upload accepted. Enforced before the file is buffered, so an oversized upload costs nothing |
 
 `.env` is gitignored. `.env.example` is the tracked reference and holds no secrets.
 
@@ -142,20 +161,46 @@ trace, file path, or internal message; the full error is written to the server l
 
 ## Database
 
-A single SQLite file via `better-sqlite3`, opened at startup and closed on shutdown by
-[`src/database/database.service.ts`](src/database/database.service.ts). WAL journaling and foreign
-keys are on.
+A single SQLite file, accessed through **Prisma ORM 7.10.0** with the official
+`@prisma/adapter-better-sqlite3` driver adapter.
 
-Each table is added by the feature that needs it, created with `CREATE TABLE IF NOT EXISTS` when
-that feature's module starts. There is no migration framework: **changing a column means deleting
-`data/margin.sqlite` and restarting.** Authentication owns `users` and `sessions`.
+- [`prisma/schema.prisma`](prisma/schema.prisma) is the one place the tables are described. Every
+  model maps onto the existing snake_case columns with `@map`/`@@map`, so the schema Prisma
+  manages is the schema BE-03 already had.
+- [`src/prisma/prisma.service.ts`](src/prisma/prisma.service.ts) extends `PrismaClient`, resolves
+  `DATABASE_PATH` to an absolute path before opening it, and disconnects on shutdown.
+- The client is generated into `src/generated/prisma` and is **not** committed; `pnpm install`
+  and `pnpm --filter api build` both regenerate it.
+- Migrations live in [`prisma/migrations`](prisma/migrations). There is no `CREATE TABLE` at
+  runtime any more — the schema is applied by `db:deploy` before the API starts.
+
+| Owner | Tables |
+|---|---|
+| Authentication | `users`, `sessions` |
+| Ingestion | `employees`, `salaries`, `projects`, `timesheet_entries`, `imports` |
+| Assumptions | `settings` |
+
+Two details worth knowing:
+
+- `salaries.amount` is `NOT NULL` and a blank cell is skipped rather than stored, so **"no row"
+  means unknown and `0` means a genuine zero salary**.
+- `sessions.expires_at` is milliseconds since the epoch, modelled as `BigInt` because the value
+  exceeds Prisma's 32-bit `Int`.
+
+The only raw SQL left in the application is two `PRAGMA` statements (`journal_mode = WAL`,
+`foreign_keys = ON`) in `PrismaService.onModuleInit`. They are SQLite connection settings with no
+Prisma equivalent, and `foreign_keys = ON` is what makes the schema's relations actually enforced.
 
 ## Scripts
 
 ```bash
-pnpm --filter api dev       # watch mode
-pnpm --filter api build     # compile to dist/
-pnpm --filter api lint      # oxlint
+pnpm --filter api dev          # watch mode
+pnpm --filter api build        # prisma generate + compile to dist/
+pnpm --filter api lint         # oxlint
+pnpm --filter api db:deploy    # apply migrations
+pnpm --filter api db:adopt     # baseline a database created before Prisma
+pnpm --filter api db:status    # which migrations a database has
+pnpm --filter api db:generate  # regenerate the Prisma client
 ```
 
 There is no test suite in this app by decision — behaviour is verified by running it. See
