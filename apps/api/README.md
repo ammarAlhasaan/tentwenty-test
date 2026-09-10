@@ -197,11 +197,29 @@ Prisma equivalent, and `foreign_keys = ON` is what makes the schema's relations 
 pnpm --filter api dev          # watch mode
 pnpm --filter api build        # prisma generate + compile to dist/
 pnpm --filter api lint         # oxlint
+pnpm --filter api test         # vitest — the cost model suite
 pnpm --filter api db:deploy    # apply migrations
 pnpm --filter api db:adopt     # baseline a database created before Prisma
 pnpm --filter api db:status    # which migrations a database has
 pnpm --filter api db:generate  # regenerate the Prisma client
 ```
 
-There is no test suite in this app by decision — behaviour is verified by running it. See
-[the verification guide](../../specs/001-backend-foundation/quickstart.md) for the commands.
+## Tests
+
+```bash
+cd apps/api && pnpm test
+```
+
+Nine cases over the cost model in [`src/analytics/cost-model.ts`](src/analytics/cost-model.ts) —
+the reconciliation the brief asks us to self-check (with overhead at zero, total cost must equal
+total salaries to the dirham), each rate formula pinned to its stated definition, and the
+missing-data behaviour. They run in about 150 ms, need no database, no network and no spreadsheet,
+and their expected figures are derived by hand in
+[data-model.md](../../specs/009-cost-model-tests/data-model.md) rather than copied from what the
+code returns.
+
+**What is deliberately not covered**: spreadsheet parsing, `AnalyticsService` (it needs a
+database), the HTTP endpoints, authentication, and the whole of `apps/web`. The brief asks for
+tests "where they earn their keep"; the calculation layer is where they do, because that is where a
+wrong number is invisible. Everything else is verified by running the application — see
+[the verification guide](../../specs/001-backend-foundation/quickstart.md).
