@@ -59,11 +59,7 @@ export type DashboardResponse = {
     salariesComplete: boolean;
     employeeMonthsMissingSalary: number;
   };
-  completeness: {
-    cost: "complete" | "partial";
-    revenue: "complete" | "partial";
-    issues: { code: string; message: string; context?: unknown }[];
-  };
+  completeness: Completeness;
 };
 
 export type PeriodDescriptor = {
@@ -192,7 +188,7 @@ export type CategoriesResponse = {
 };
 
 /** Every period-scoped endpoint takes `year`; `month` narrows it to one month. */
-function periodQuery(period: PeriodSelection): string {
+export function periodQuery(period: PeriodSelection): string {
   const query = new URLSearchParams({ year: String(period.year) });
   if (period.month !== null) query.set("month", String(period.month));
   return query.toString();

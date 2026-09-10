@@ -17,7 +17,7 @@ const MONTHS = [
   "December",
 ] as const;
 
-export function monthLabel(month: number): string {
+function monthLabel(month: number): string {
   return MONTHS[month - 1] ?? String(month);
 }
 
@@ -43,13 +43,11 @@ export function PeriodFilter({
   years,
   months,
   onChange,
-  disabled = false,
 }: {
   value: PeriodSelection;
   years: number[];
   months: PeriodMonth[];
   onChange: (period: PeriodSelection) => void;
-  disabled?: boolean;
 }) {
   const uncovered =
     value.month !== null && !months.some((month) => month.month === value.month)
@@ -62,7 +60,7 @@ export function PeriodFilter({
         aria-label="Year"
         className={selectClass}
         value={value.year}
-        disabled={disabled || years.length === 0}
+        disabled={years.length === 0}
         onChange={(event) =>
           onChange({ year: Number(event.target.value), month: value.month })
         }
@@ -77,7 +75,6 @@ export function PeriodFilter({
         aria-label="Month"
         className={selectClass}
         value={value.month === null ? ALL_MONTHS : value.month}
-        disabled={disabled}
         onChange={(event) =>
           onChange({
             year: value.year,

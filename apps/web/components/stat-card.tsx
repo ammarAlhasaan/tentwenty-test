@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { MissingValue } from "@/components/missing-value";
+import { ShareBar } from "@/components/pill";
 import { ABSENT } from "@/lib/format";
 import { cn } from "cn";
 
@@ -37,17 +38,7 @@ export function StatCard({
           </p>
         )}
 
-        {share == null ? null : (
-          <div
-            className="h-2 overflow-hidden rounded-full bg-line-2"
-            role="presentation"
-          >
-            <div
-              className="h-full rounded-full bg-brand"
-              style={{ width: `${Math.max(0, Math.min(1, share)) * 100}%` }}
-            />
-          </div>
-        )}
+        {share == null ? null : <ShareBar value={share} />}
 
         {hint ? (
           <p className="text-[12.5px] text-ink-2 text-pretty">{hint}</p>

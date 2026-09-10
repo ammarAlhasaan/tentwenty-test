@@ -30,12 +30,12 @@ export type SettingsResponse = {
   knownCategories: { category: string; billable: boolean; hours: number }[];
 };
 
-export type SettingsInput = {
+type SettingsInput = {
   billableCategories: string[];
   monthlyOverhead: number;
 };
 
-export function fetchSettings(signal?: AbortSignal): Promise<SettingsResponse> {
+function fetchSettings(signal?: AbortSignal): Promise<SettingsResponse> {
   return apiFetch<SettingsResponse>("/settings", { signal });
 }
 

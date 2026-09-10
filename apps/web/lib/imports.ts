@@ -17,7 +17,7 @@ import { analyticsKeys } from "./analytics";
 import { settingsKeys } from "./settings";
 import { isStampCurrent, stampSession } from "./session";
 
-export const importKeys = {
+const importKeys = {
   all: ["imports"] as const,
   history: () => ["imports", "history"] as const,
 };
@@ -34,7 +34,7 @@ export type ImportResult = {
   warnings: { code: string; message: string }[];
 };
 
-export type ImportHistoryResponse = {
+type ImportHistoryResponse = {
   imports: {
     id: number;
     kind: ImportKind;
@@ -42,9 +42,7 @@ export type ImportHistoryResponse = {
     uploadedAt: string;
     uploadedBy: string | null;
     rowsAccepted: number;
-    rowsSkipped?: number;
     periodsReplaced: { year: number; month: number; label: string }[];
-    warnings?: { code: string; message: string }[];
   }[];
 };
 

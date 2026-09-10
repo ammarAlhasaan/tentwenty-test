@@ -5,7 +5,7 @@ import { z } from 'zod';
 // Shipped so `cp .env.example .env` with no edits produces a running API. It is
 // rejected in production by the refinement below, which is what keeps a
 // published secret from ever signing a real session cookie.
-export const DEVELOPMENT_SESSION_SECRET = 'development-only-session-secret-change-me';
+const DEVELOPMENT_SESSION_SECRET = 'development-only-session-secret-change-me';
 
 export const envSchema = z
   .object({
@@ -42,8 +42,6 @@ export const envSchema = z
       });
     }
   });
-
-export type Env = z.infer<typeof envSchema>;
 
 // Relative database paths are anchored to apps/api rather than to the working
 // directory: `pnpm -r dev` from the repo root and `pnpm dev` from apps/api run

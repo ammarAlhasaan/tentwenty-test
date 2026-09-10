@@ -521,7 +521,6 @@ export class AnalyticsService {
       cost,
       costComplete: complete,
       allocatedRevenue,
-      revenueComplete,
       // Withheld rather than shown as trustworthy when an input is missing.
       profit: whole ? allocatedRevenue - cost : null,
       margin: whole ? ratio(allocatedRevenue - cost, allocatedRevenue) : null,
@@ -635,7 +634,7 @@ function sum<T>(rows: T[], value: (row: T) => number): number {
   return rows.reduce((total, row) => total + value(row), 0);
 }
 
-/** The one place rounding happens; non-finite becomes null, margins are never clamped. */
+/** Non-finite becomes null; margins are never clamped. */
 function round2(value: number | null): number | null {
   if (value === null || !Number.isFinite(value)) return null;
   return Math.round(value * 100) / 100;

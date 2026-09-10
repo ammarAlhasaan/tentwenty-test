@@ -24,14 +24,11 @@ import {
   type AuthUser,
 } from "./session";
 
-export type { AuthUser };
-export { authKeys };
-
 type AuthResponse = { user: AuthUser };
 
-export type LoginInput = { email: string; password: string };
+type LoginInput = { email: string; password: string };
 
-export function login(
+function login(
   input: LoginInput,
   signal?: AbortSignal,
 ): Promise<AuthResponse> {
@@ -42,11 +39,11 @@ export function login(
   });
 }
 
-export function logout(signal?: AbortSignal): Promise<void> {
+function logout(signal?: AbortSignal): Promise<void> {
   return apiFetch<void>("/auth/logout", { method: "POST", signal });
 }
 
-export async function fetchMe(signal?: AbortSignal): Promise<AuthUser | null> {
+async function fetchMe(signal?: AbortSignal): Promise<AuthUser | null> {
   try {
     const { user } = await apiFetch<AuthResponse>("/auth/me", { signal });
     return user;
@@ -60,7 +57,7 @@ export async function fetchMe(signal?: AbortSignal): Promise<AuthUser | null> {
   }
 }
 
-export function meQueryOptions() {
+function meQueryOptions() {
   return queryOptions({
     queryKey: authKeys.me(),
     queryFn: ({ signal }) => fetchMe(signal),

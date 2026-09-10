@@ -4,8 +4,8 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 
-export const DEMO_USER_EMAIL = 'demo@tentwenty.local';
-export const DEMO_USER_PASSWORD = 'demo-password-2026';
+const DEMO_USER_EMAIL = 'demo@tentwenty.local';
+const DEMO_USER_PASSWORD = 'demo-password-2026';
 
 @Module({
   controllers: [AuthController],

@@ -21,7 +21,7 @@ export const authKeys = {
  * feature keying on `["projects", ...]` is cleared on a session change with no
  * registration step to forget.
  */
-export function isPrivateQuery(query: Query): boolean {
+function isPrivateQuery(query: Query): boolean {
   return query.queryKey[0] !== "auth";
 }
 
@@ -33,7 +33,7 @@ export function isPrivateQuery(query: Query): boolean {
  */
 let generation = 0;
 
-export type SessionStamp = { generation: number };
+type SessionStamp = { generation: number };
 
 export function stampSession(): SessionStamp {
   return { generation };

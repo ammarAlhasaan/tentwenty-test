@@ -1,3 +1,4 @@
+import { monthKey } from '../analytics/cost-model.js';
 import {
   type CellValue,
   type ImportIssue,
@@ -16,9 +17,9 @@ import {
 } from './parse-workbook.js';
 import { byPeriod } from './parse-timesheet.js';
 
-export type SalaryRow = { employeeNo: string; employeeName: string } & Period & { amount: number };
+type SalaryRow = { employeeNo: string; employeeName: string } & Period & { amount: number };
 
-export type SalaryParseResult = {
+type SalaryParseResult = {
   rows: SalaryRow[];
   /**
    * Every month **column** in the header, whether or not its cells hold values.
@@ -94,14 +95,14 @@ export async function parseSalaries(
       if (amount === 'invalid') {
         issues.push({
           row: line,
-          message: `Salary for ${monthName(column.period)} must be a number, found "${rawCell(cell)}".`,
+          message: `Salary for ${monthKey(column.period.year, column.period.month)} must be a number, found "${rawCell(cell)}".`,
         });
         continue;
       }
       if (amount < 0) {
         issues.push({
           row: line,
-          message: `Salary for ${monthName(column.period)} must not be negative, found ${amount}.`,
+          message: `Salary for ${monthKey(column.period.year, column.period.month)} must not be negative, found ${amount}.`,
         });
         continue;
       }
@@ -127,8 +128,4 @@ function yearFromTitle(sheet: CellValue[][], headerRowIndex: number): number | n
     }
   }
   return null;
-}
-
-function monthName(period: Period): string {
-  return `${period.year}-${String(period.month).padStart(2, '0')}`;
 }

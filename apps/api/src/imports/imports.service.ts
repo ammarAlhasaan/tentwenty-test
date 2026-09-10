@@ -1,4 +1,5 @@
 import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { isBillable } from '../analytics/cost-model.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import {
@@ -14,7 +15,7 @@ import { type TimesheetRow, parseTimesheet } from './parse-timesheet.js';
 
 const MAX_REPORTED_ISSUES = 50;
 
-export type ImportKind = 'timesheet' | 'salaries' | 'projects';
+type ImportKind = 'timesheet' | 'salaries' | 'projects';
 
 export type ImportResult = {
   importId: number;
@@ -192,15 +193,16 @@ export class ImportsService {
 
   /** Unpriced billable ref codes, judged against the current billable categories. */
   private async timesheetWarnings(rows: TimesheetRow[]): Promise<ImportWarning[]> {
-    const { billableCategories } = await this.settings.read();
-    const billable = new Set(billableCategories.map((c) => c.toLowerCase()));
+    const settings = await this.settings.read();
     const priced = new Set(
-      (await this.prisma.project.findMany({ select: { refCode: true } })).map((row) => row.refCode),
+      (await this.prisma.project.findMany({ select: { refCode: true, price: true } }))
+        .filter((row) => row.price !== null && row.price > 0)
+        .map((row) => row.refCode),
     );
 
     const unpriced = new Map<string, number>();
     for (const row of rows) {
-      if (!billable.has(row.category.toLowerCase()) || priced.has(row.refCode)) continue;
+      if (!isBillable(row.category, settings) || priced.has(row.refCode)) continue;
       unpriced.set(row.refCode, (unpriced.get(row.refCode) ?? 0) + row.hours);
     }
 

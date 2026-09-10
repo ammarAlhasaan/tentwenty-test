@@ -76,7 +76,10 @@ export function ShareBar({
   tone?: "brand" | "muted";
 }) {
   return (
-    <div className="h-2 w-full min-w-24 overflow-hidden rounded-full bg-line-2">
+    <div
+      className="h-2 w-full min-w-24 overflow-hidden rounded-full bg-line-2"
+      role="presentation"
+    >
       <div
         className={cn(
           "h-full rounded-full",

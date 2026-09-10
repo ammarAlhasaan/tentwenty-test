@@ -7,11 +7,11 @@
 
 // Inlined at build time by Next.js, so a deployment that changes the API origin
 // needs a rebuild. The fallback is the documented local origin of `apps/api`.
-export const API_BASE_URL =
+const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 /** Duplicated from `apps/api`'s error contract; nothing is imported across the boundary. */
-export type ApiErrorBody = {
+type ApiErrorBody = {
   statusCode: number;
   error: string;
   message: string[];
@@ -91,7 +91,7 @@ async function toApiError(response: Response): Promise<ApiError> {
   });
 }
 
-export type ApiRequest = {
+type ApiRequest = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   /** Sent as JSON, except `FormData`, which is passed through untouched. */
   body?: unknown;
