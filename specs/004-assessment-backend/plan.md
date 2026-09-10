@@ -217,3 +217,24 @@ diffed byte-for-byte against its pre-migration response.
 
 Structure is unchanged otherwise: the same three feature modules, `cost-model.ts` untouched, no
 new abstraction layer. Details and the version traps are in [`research.md`](./research.md) §11.
+
+### Reporting scope cut and cost calculation unified
+
+A review found three implementations of "sum cost, track completeness" — `totalsFor`, `costOf`, and
+a third inlined in `categories()`. The inlined one had a real defect: a category whose cost was
+partial became `null`, and the response total then added that `null` as `0`, silently breaking the
+documented invariant that category costs sum to the salary bill.
+
+The fix was to delete the extra reporting rather than repair it three times:
+
+| Change | Effect |
+| --- | --- |
+| One `costOf` in `cost-model.ts`, returning `{ cost, complete }` | used by the dashboard, departments, project detail and the reconciliation; the three variants and the defect are gone |
+| One missing-data policy | cost is always the costable subtotal with a completeness flag; only `profit`, `margin` and `profitability` are withheld |
+| Hours-only endpoints (`/periods`, `/productivity`, `/categories`) read rows + assumptions only | no salaries, no prices, no cost model; they keep `monthsCovered` and `hasData` |
+| Scope cut (see [`spec.md`](./spec.md), *Reporting scope*) | the removed fields took their calculations with them |
+| `buildMonthModels` accumulates per-employee hours in one pass | no per-employee rescan of the month, no per-month scan of all salaries |
+| `groupBy` pushes instead of copying the group array per row | was O(n²) |
+
+`analytics.service.ts` went from ~750 to 633 lines. The frontend was updated in the same change.
+All figures for complete data are unchanged, field by field.

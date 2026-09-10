@@ -54,6 +54,7 @@ export type DashboardResponse = {
     month: number | null;
     label: string;
     monthsCovered: number;
+    hasData: boolean;
   };
   currency: string;
   totals: {
@@ -64,7 +65,6 @@ export type DashboardResponse = {
     productivity: number | null;
     cost: number | null;
     allocatedRevenue: number | null;
-    bookedRevenue: number | null;
     profit: number | null;
     /** A ratio. Signed, unbounded, and `null` when an input is partial. */
     margin: number | null;
@@ -166,12 +166,8 @@ export type DepartmentEmployee = {
   designation: string | null;
   totalHours: number | null;
   billableHours: number | null;
-  productivity: number | null;
   cost: number | null;
   costComplete: boolean;
-  allocatedRevenue: number | null;
-  profit: number | null;
-  margin: number | null;
 };
 
 export type DepartmentsResponse = {
@@ -182,12 +178,8 @@ export type DepartmentsResponse = {
     totalHours: number | null;
     billableHours: number | null;
     nonBillableHours: number | null;
-    productivity: number | null;
     cost: number | null;
     costComplete: boolean;
-    allocatedRevenue: number | null;
-    profit: number | null;
-    margin: number | null;
     employees: DepartmentEmployee[];
   }[];
   completeness: Completeness;
@@ -207,26 +199,19 @@ export type ProductivityResponse = {
     nonBillableHours: number | null;
     productivity: number | null;
   }[];
-  completeness: Completeness;
 };
 
 export type CategoriesResponse = {
   period: PeriodDescriptor;
-  currency: string;
   totalHours: number | null;
   billableHours: number | null;
   internalHours: number | null;
-  totalDirectCost: number | null;
-  billableDirectCost: number | null;
-  internalDirectCost: number | null;
   categories: {
     category: string;
     billable: boolean;
     hours: number | null;
     shareOfTotal: number | null;
-    directCost: number | null;
   }[];
-  completeness: Completeness;
 };
 
 /** `year` is required by every period-scoped endpoint; `month` narrows it. */

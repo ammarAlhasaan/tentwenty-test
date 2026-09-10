@@ -405,7 +405,13 @@ confirm they report the missing salary and price data rather than showing zeroes
   discredit figures from other months. Any profitability or margin derived from a partial cost MUST
   be withheld, including for an employee whose own salary is known.
 - **FR-035d**: The system MUST report, separately from any figure, whether the cost inputs and the
-  revenue inputs for the requested scope are complete or partial, and MUST name the reasons.
+  revenue inputs for the requested scope are complete or partial, and MUST name the reasons. This
+  applies to every endpoint that reports cost; endpoints that report only hours MUST NOT carry a
+  cost or revenue completeness flag, but MUST still report period coverage and whether any data
+  exists.
+- **FR-035j**: One policy governs every cost figure: it is the cost of the rows that could be
+  costed, never `null` and never a claim about the missing part. A single gap MUST NOT blank a
+  whole period. Only derived ratios are withheld.
 - **FR-035e**: Where cost or revenue is partial, the system MUST withhold profit and margin —
   reporting them as `null` — rather than presenting a figure derived from incomplete inputs as
   though it were complete.
@@ -489,6 +495,24 @@ Recorded because the assessment leaves them open. Each states the reading taken 
   range.
 - **Undefined is `null`.** A zero or unknown denominator yields `null`, never `0`, `NaN` or
   `Infinity`. No response field may serialise as `NaN` or `Infinity`.
+
+## Reporting scope, after review
+
+The first implementation reported more than the assessment asks for. The extras were removed so
+the code that computes them could go too — the assessment scores judgement and code quality, not
+field count.
+
+| Endpoint | Reported | Removed |
+| --- | --- | --- |
+| Dashboard | hours, billable hours, cost, allocated revenue, profit, margin | `bookedRevenue` — one revenue concept is enough, and the allocation is documented |
+| Categories | hours and share per category | `directCost` and its three totals — a second cost measure the brief never asks for |
+| Departments | hours and cost, per department and per person | revenue, profit, margin, productivity |
+| Productivity | per-employee hours and ratio, plus the company ratio | — |
+| Project detail | price, cost, profit, profitability, department hours, employee contributions and profitability | the month-by-month breakdown |
+
+Kept deliberately, because they protect the correctness of what *is* asked for: missing-salary
+handling, unpriced-project visibility, the full billable-hours denominator, and the
+cost-versus-salaries reconciliation.
 
 ## Out of Scope
 

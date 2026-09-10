@@ -83,7 +83,7 @@ function DashboardFigures({ data }: { data: DashboardResponse }) {
         <StatCard
           label="Revenue"
           value={formatCurrency(totals.allocatedRevenue)}
-          hint={`earned by this period's hours · ${formatCurrency(totals.bookedRevenue)} sold`}
+          hint="each project's price, split by the hours worked in this period"
         />
         <StatCard
           label="Margin"

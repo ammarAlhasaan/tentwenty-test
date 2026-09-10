@@ -19,7 +19,7 @@ import {
   TableScroller,
 } from "@/components/ui/table";
 import { useCategories, type CategoriesResponse } from "@/lib/analytics";
-import { formatCurrency, formatNumber, formatShare } from "@/lib/format";
+import { formatNumber, formatShare } from "@/lib/format";
 
 export function CategoriesView() {
   const scope = usePeriodScope();
@@ -49,7 +49,7 @@ export function CategoriesView() {
 }
 
 function CategoriesTable({ data }: { data: CategoriesResponse }) {
-  const { categories, period, currency } = data;
+  const { categories, period } = data;
 
   if (categories.length === 0) {
     return (
@@ -77,12 +77,12 @@ function CategoriesTable({ data }: { data: CategoriesResponse }) {
               ? data.billableHours / data.totalHours
               : null
           }
-          hint={formatCurrency(data.billableDirectCost)}
+          hint="charged to a project"
         />
         <StatCard
           label="Internal"
           value={formatNumber(data.internalHours)}
-          hint={`${formatCurrency(data.internalDirectCost)} the agency absorbs`}
+          hint="the agency absorbs it"
         />
       </div>
 
@@ -97,7 +97,6 @@ function CategoriesTable({ data }: { data: CategoriesResponse }) {
               <TableHead align="start">Counts as</TableHead>
               <TableHead>Hours</TableHead>
               <TableHead>Share</TableHead>
-              <TableHead>Direct cost</TableHead>
               <TableHead align="start" className="w-56">
                 <span className="sr-only">Share of logged time</span>
               </TableHead>
@@ -118,9 +117,6 @@ function CategoriesTable({ data }: { data: CategoriesResponse }) {
                 <TableCell numeric>
                   {formatShare(category.shareOfTotal)}
                 </TableCell>
-                <TableCell numeric>
-                  {formatCurrency(category.directCost)}
-                </TableCell>
                 <TableCell align="start">
                   <ShareBar
                     value={category.shareOfTotal}
@@ -138,9 +134,6 @@ function CategoriesTable({ data }: { data: CategoriesResponse }) {
                 {formatNumber(data.totalHours)}
               </TableFooterCell>
               <TableFooterCell numeric>100.0%</TableFooterCell>
-              <TableFooterCell numeric>
-                {formatCurrency(data.totalDirectCost)}
-              </TableFooterCell>
               <TableFooterCell />
             </TableRow>
           </TableFooter>
@@ -148,12 +141,8 @@ function CategoriesTable({ data }: { data: CategoriesResponse }) {
       </Card>
 
       <p className="max-w-[90ch] text-[13px] text-ink-3 text-pretty">
-        Direct cost here is each category&apos;s hours valued at people&apos;s
-        salary rates only — the one cost measure that adds up across every row,
-        which is why this column totals to the whole salary bill in {currency}.
-        The Dashboard is where fully-loaded cost is read, because loading the
-        indirect pool onto billable hours and then adding internal time would
-        count that pool twice.
+        This page answers where the time goes. Cost is read on the Dashboard and
+        the project pages, where the indirect pool is loaded onto billable hours.
       </p>
     </>
   );

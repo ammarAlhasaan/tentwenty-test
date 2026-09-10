@@ -46,21 +46,23 @@ supplied workbooks loaded, not an illustration.
 - **Undefined is `null`**, never `0`. No field ever serialises as `NaN` or `Infinity`.
 - **Currency** is AED throughout, stated once per response as `"currency": "AED"`.
 
-## Completeness — read this before trusting a figure
+## Completeness — one policy, everywhere
 
-Arithmetic balance and dataset completeness are **two different facts**, reported separately.
+Arithmetic and completeness are **two separate facts**, and the rule is the same on every endpoint
+that reports cost:
 
-Every calculated response carries:
+> **A cost figure is always the cost of what could be costed. `completeness` says whether that is
+> everything. Anything divided by an incomplete input is `null`.**
 
 ```json
 "completeness": {
-  "cost": "complete",
-  "revenue": "partial",
+  "cost": "partial",
+  "revenue": "complete",
   "issues": [
     {
-      "code": "project_without_price",
-      "message": "Q2025001a has billable hours in this period and no usable price, so its revenue is unknown.",
-      "context": { "refCode": "Q2025001a" }
+      "code": "employee_without_salary",
+      "message": "10201 logged hours in March 2025 with no salary on record. Every allocated cost in that month covers only part of the work.",
+      "context": { "employeeNo": "10201", "year": 2025, "month": 3 }
     }
   ]
 }
@@ -68,32 +70,37 @@ Every calculated response carries:
 
 | Field | Meaning |
 | --- | --- |
-| `cost` | `partial` when any month in scope has an employee with logged hours and no salary on record |
+| `cost` | `partial` when any month in scope has an employee with logged hours and no salary |
 | `revenue` | `partial` when any project with billable hours in scope has no usable price |
-| `issues` | the specific reasons, recomputed on read — fixing a gap by uploading the missing data makes the issue disappear |
+| `issues` | the reasons, recomputed on read — uploading the missing file makes them disappear |
 
-Four consequences that the API guarantees:
+What this guarantees:
 
-1. **A partial `cost` or `revenue` figure is the known subtotal, never a complete one.** It is a
-   real sum of the inputs that exist; it is not the whole answer. The flag is the only way to know
-   which you are looking at.
-2. **`profit`, `margin` and `profitability` are withheld — `null` — whenever the inputs behind
-   them are partial.** A derived figure built on incomplete inputs is never presented as though it
-   were trustworthy.
-3. **One missing salary marks the whole month partial**, not just that person's rows. Their
-   non-billable time is missing from the indirect cost pool, and the pool prices *every* project
-   row in that month, so a colleague whose own salary is on record still has an understated cost.
-4. **Completeness propagates to every level, and is reported at every level.** Each month,
-   department and employee row in a response carries its own `costComplete`, so a gap in one month
-   does not silently discredit the others. Observed: with March incomplete, a project's April to
-   July rows keep `costComplete: true` and real figures, while every March-touching employee —
-   including ones whose salaries are known — reports `profitability: null`.
+1. **A partial cost is a partial cost, not a total.** It is the cost of the rows that could be
+   costed. It does **not** tell you how much is missing — the missing salary is unknown, so the
+   size of the gap is unknowable. Present it as "cost so far", never as the period's cost.
+2. **`profit`, `margin` and `profitability` are withheld — `null` — whenever their inputs are
+   partial.**
+3. **One missing salary marks the whole month partial**, not just that person's rows: their
+   non-billable time is missing from the indirect pool, and the pool prices every row in that
+   month. A colleague whose own salary is on record still has an understated cost.
+4. **Completeness is reported per group.** Each department, employee and project row carries its
+   own `costComplete`, so a gap in one month does not discredit figures from the others.
+5. **A gap never blanks a period.** A single missing salary in March leaves the year's cost
+   readable and flagged, rather than erasing it.
+
+`reconciliation` stays alongside it as diagnostic detail — `knownSalaries`, `allocatedCost`,
+`uncostedIndirectCost` — so the size of what *is* known stays inspectable.
 
 **The cost model's formula is never bent to make the arithmetic tie.** The indirect cost rate
 divides the pool by **all** billable hours that month, as the assessment specifies — not by the
 hours of employees who happen to have a salary on record. Narrowing that denominator would make
-colleagues absorb a missing person's share. Instead the unattributable remainder is reported as
+colleagues absorb a missing person's share. The unattributable remainder is reported as
 `reconciliation.uncostedIndirectCost`.
+
+**Hours-only endpoints carry no completeness block.** `/periods`, `/productivity` and
+`/categories` report no cost, so cost and revenue completeness do not apply. They still report
+coverage: `period.monthsCovered` and `period.hasData` make an unuploaded month visible.
 
 ## Warning and issue codes
 
