@@ -23,6 +23,7 @@ export function DashboardView() {
     <>
       <PageHeader
         title="Dashboard"
+        badge={scope.badge}
         description="Hours, cost, revenue and margin across the agency."
         actions={scope.filter}
       />
@@ -147,12 +148,7 @@ export function DashboardViewFallback() {
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-4 w-72" />
       </div>
-      <Skeleton className="h-52 rounded-2xl" />
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(14.25rem,1fr))] gap-4">
-        {Array.from({ length: 5 }, (_, i) => (
-          <Skeleton key={i} className="h-32 rounded-xl" />
-        ))}
-      </div>
+      <DashboardSkeleton />
     </div>
   );
 }

@@ -99,10 +99,10 @@ export function UploadCard({
   // mistake from a mis-click in a file picker.
   const [staged, setStaged] = useState<File | null>(null);
 
-  const mine = upload.variables?.kind === kind;
-  const result = mine && upload.isSuccess ? upload.data : null;
-  const busy = mine && upload.isPending;
-  const failure = mine && upload.isError ? describeFailure(upload.error) : null;
+  // This card owns its own mutation, so its state is already this card's.
+  const result = upload.isSuccess ? upload.data : null;
+  const busy = upload.isPending;
+  const failure = upload.isError ? describeFailure(upload.error) : null;
 
   const parsedYear = Number(year);
   const yearError =
@@ -112,12 +112,17 @@ export function UploadCard({
 
   function confirm() {
     if (!staged || busy || yearError) return;
-    upload.mutate({
-      kind,
-      file: staged,
-      year: needsYear && year !== "" ? parsedYear : undefined,
-    });
-    setStaged(null);
+    // Cleared on success only. A rejection carries the row to fix, and an
+    // unconfirmed result asks the reader to decide whether to retry -- both are
+    // useless once the file they refer to has been thrown away.
+    upload.mutate(
+      {
+        kind,
+        file: staged,
+        year: needsYear && year !== "" ? parsedYear : undefined,
+      },
+      { onSuccess: () => setStaged(null) },
+    );
   }
 
   return (

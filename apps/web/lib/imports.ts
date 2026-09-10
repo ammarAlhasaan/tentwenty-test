@@ -31,8 +31,6 @@ export type ImportResult = {
   rowsAccepted: number;
   rowsSkipped: number;
   periodsReplaced: { year: number; month: number; label: string }[];
-  projectsInserted?: number;
-  projectsUpdated?: number;
   warnings: { code: string; message: string }[];
 };
 

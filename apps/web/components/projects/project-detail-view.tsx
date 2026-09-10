@@ -8,13 +8,13 @@ import { PercentPill } from "@/components/pill";
 import { QueryError, TableSkeleton } from "@/components/query-states";
 import { StatCard } from "@/components/stat-card";
 import { VerdictBanner } from "@/components/dashboard/verdict-banner";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableName,
+  TablePanel,
   TableRow,
   TableScroller,
 } from "@/components/ui/table";
@@ -112,10 +112,7 @@ function ProjectDetail({ data }: { data: ProjectDetailResponse }) {
       />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-        <Card className="py-0">
-          <CardHeader className="px-5 pt-5">
-            <CardTitle>Hours and cost by department</CardTitle>
-          </CardHeader>
+        <TablePanel title="Hours and cost by department">
           <TableScroller minWidth={340}>
             <TableHeader>
               <TableRow>
@@ -149,12 +146,9 @@ function ProjectDetail({ data }: { data: ProjectDetailResponse }) {
               ))}
             </TableBody>
           </TableScroller>
-        </Card>
+        </TablePanel>
 
-        <Card className="py-0">
-          <CardHeader className="px-5 pt-5">
-            <CardTitle>Employee contribution</CardTitle>
-          </CardHeader>
+        <TablePanel title="Employee contribution">
           <TableScroller minWidth={560}>
             <TableHeader>
               <TableRow>
@@ -192,7 +186,7 @@ function ProjectDetail({ data }: { data: ProjectDetailResponse }) {
               ))}
             </TableBody>
           </TableScroller>
-        </Card>
+        </TablePanel>
       </div>
 
     </>

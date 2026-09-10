@@ -4,10 +4,13 @@ import { CalendarClock, Inbox } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { EmptyState } from "@/components/empty-state";
-import { ErrorState } from "@/components/error-state";
+import { Notice } from "@/components/notice";
 import { PeriodFilter, periodLabel } from "@/components/period-filter";
+import { QueryError, TableSkeleton } from "@/components/query-states";
 import { Button } from "@/components/ui/button";
 import { useMe } from "@/lib/auth";
+import { isApiError } from "@/lib/api";
+import { useLoadSampleData } from "@/lib/imports";
 import { usePeriods, type PeriodSelection, type PeriodsResponse } from "@/lib/analytics";
 
 function coveredMonths(
@@ -113,12 +116,11 @@ export function usePeriodScope() {
   let gate: React.ReactNode = null;
 
   if (periods.isPending) {
-    gate = <PeriodScopeSkeleton />;
+    gate = <TableSkeleton />;
   } else if (periods.isError) {
     gate = (
-      <ErrorState
-        title="Couldn't load the reporting periods"
-        description="The service did not answer. Nothing has been lost — trying again re-runs the request."
+      <QueryError
+        what="the reporting periods"
         onRetry={() => void periods.refetch()}
       />
     );
@@ -147,37 +149,60 @@ export function usePeriodScope() {
   }
 
   return {
-    signedIn,
     /** Safe to use for a query only when `gate` is null. */
     period: period ?? { year: 0, month: null },
     enabled: signedIn && covered,
+    /** The period as a label for the page title, beside the filter control. */
+    badge: period ? periodLabel(period) : undefined,
     filter,
     gate,
-    periods,
   };
 }
 
-/** The first-run screen: nothing has been ingested, so point at the fix. */
-export function NoDataYet() {
-  return (
-    <EmptyState
-      icon={Inbox}
-      title="No data has been ingested yet"
-      description="Upload the timesheet, the salary overview and the project prices — or load the sample workbooks — and every reporting screen fills in."
-      action={
-        <Button
-          nativeButton={false}
-          render={<Link href="/uploads">Go to uploads</Link>}
-        />
-      }
-    />
-  );
-}
+/**
+ * The first-run screen. It offers the sample import in place rather than only
+ * pointing at the screen that holds the button: this is the first thing anyone
+ * does with the product, and it reuses the same session-stamped mutation the
+ * Uploads screen uses, so every reporting screen refills without a reload.
+ *
+ * It reaches all five period-scoped screens through the shared gate, which is
+ * right — any of them can be someone's first screen.
+ */
+function NoDataYet() {
+  const loadSample = useLoadSampleData();
 
-function PeriodScopeSkeleton() {
   return (
-    <div className="h-64 animate-pulse rounded-xl bg-muted" aria-busy role="status">
-      <span className="sr-only">Loading</span>
+    <div className="flex flex-col gap-4">
+      <EmptyState
+        icon={Inbox}
+        title="No data has been ingested yet"
+        description="Load the supplied sample workbooks to see every screen filled in, or upload the timesheet, the salary overview and the project prices yourself."
+        action={
+          <>
+            <Button
+              disabled={loadSample.isPending}
+              onClick={() => loadSample.mutate()}
+            >
+              {loadSample.isPending
+                ? "Loading…"
+                : "Load the sample workbooks"}
+            </Button>
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={<Link href="/uploads">Go to uploads</Link>}
+            />
+          </>
+        }
+      />
+
+      {loadSample.isError ? (
+        <Notice tone="danger" title="Couldn't load the sample workbooks">
+          {isApiError(loadSample.error)
+            ? loadSample.error.messages.join(" ")
+            : "Something went wrong. Nothing was changed."}
+        </Notice>
+      ) : null}
     </div>
   );
 }

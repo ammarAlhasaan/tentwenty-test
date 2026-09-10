@@ -7,13 +7,13 @@ import { PageHeader } from "@/components/page-header";
 import { QueryError, TableSkeleton } from "@/components/query-states";
 import { ImportSummary, UploadCard } from "@/components/data/upload-card";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableName,
+  TablePanel,
   TableRow,
   TableScroller,
 } from "@/components/ui/table";
@@ -21,7 +21,7 @@ import { usePeriods } from "@/lib/analytics";
 import { useMe } from "@/lib/auth";
 import { isApiError } from "@/lib/api";
 import { useImportHistory, useLoadSampleData } from "@/lib/imports";
-import { formatNumber } from "@/lib/format";
+import { formatDateTime, formatNumber } from "@/lib/format";
 
 /**
  * The three imports do not behave alike, and the confirmation has to say which
@@ -135,10 +135,7 @@ export function UploadsView() {
         ))}
       </div>
 
-      <Card className="py-0">
-        <CardHeader className="px-5 pt-5">
-          <CardTitle>Import history</CardTitle>
-        </CardHeader>
+      <TablePanel title="Import history">
 
         {history.isPending ? (
           <div className="p-5">
@@ -177,7 +174,7 @@ export function UploadsView() {
                   </TableCell>
                   <TableCell align="start" className="text-ink-2">
                     <time dateTime={entry.uploadedAt}>
-                      {new Date(entry.uploadedAt).toLocaleString("en-AE")}
+                      {formatDateTime(entry.uploadedAt)}
                     </time>
                     {entry.uploadedBy ? (
                       <span className="block text-[11.5px] text-ink-3">
@@ -200,7 +197,7 @@ export function UploadsView() {
             </TableBody>
           </TableScroller>
         )}
-      </Card>
+      </TablePanel>
 
       <p className="max-w-[90ch] text-[13px] text-ink-3 text-pretty">
         A timesheet or salary import replaces only the months its file covers;

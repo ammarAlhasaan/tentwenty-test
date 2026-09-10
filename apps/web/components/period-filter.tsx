@@ -51,6 +51,11 @@ export function PeriodFilter({
   onChange: (period: PeriodSelection) => void;
   disabled?: boolean;
 }) {
+  const uncovered =
+    value.month !== null && !months.some((month) => month.month === value.month)
+      ? value.month
+      : null;
+
   return (
     <div className="flex items-center gap-0.5 rounded-[13px] border border-border bg-card p-1 shadow-card">
       <select
@@ -89,6 +94,15 @@ export function PeriodFilter({
             {monthLabel(month.month)}
           </option>
         ))}
+        {/* A month reached by URL that this year does not hold still needs an
+            option, or the select silently displays "Whole year" while the page
+            says otherwise. It is offered disabled: it is where the reader is,
+            not somewhere they may go. */}
+        {uncovered === null ? null : (
+          <option value={uncovered} disabled>
+            {monthLabel(uncovered)} — no data
+          </option>
+        )}
       </select>
     </div>
   );

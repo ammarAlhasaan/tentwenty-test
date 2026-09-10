@@ -12,23 +12,14 @@
  * (apps/web/README.md, 4.5).
  */
 
-import { queryOptions, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { apiFetch } from "./api";
 
 export const analyticsKeys = {
+  /** What imports and settings saves invalidate. */
   all: ["analytics"] as const,
   periods: () => ["analytics", "periods"] as const,
-  dashboard: (period: PeriodSelection) =>
-    ["analytics", "dashboard", period.year, period.month] as const,
-  projects: (period: PeriodSelection) =>
-    ["analytics", "projects", period.year, period.month] as const,
   project: (refCode: string) => ["analytics", "project", refCode] as const,
-  departments: (period: PeriodSelection) =>
-    ["analytics", "departments", period.year, period.month] as const,
-  productivity: (period: PeriodSelection) =>
-    ["analytics", "productivity", period.year, period.month] as const,
-  categories: (period: PeriodSelection) =>
-    ["analytics", "categories", period.year, period.month] as const,
 };
 
 /** `month: null` means the whole year — the API's own convention. */
@@ -37,8 +28,6 @@ export type PeriodSelection = { year: number; month: number | null };
 export type PeriodMonth = {
   month: number;
   label: string;
-  hasTimesheet: boolean;
-  hasSalaries: boolean;
 };
 
 export type PeriodsResponse = {
@@ -49,13 +38,7 @@ export type PeriodsResponse = {
 };
 
 export type DashboardResponse = {
-  period: {
-    year: number;
-    month: number | null;
-    label: string;
-    monthsCovered: number;
-    hasData: boolean;
-  };
+  period: PeriodDescriptor;
   currency: string;
   totals: {
     totalHours: number | null;
@@ -87,7 +70,6 @@ export type PeriodDescriptor = {
   year: number;
   month: number | null;
   label: string;
-  monthsCovered: number;
 };
 
 export type Completeness = {
@@ -104,15 +86,12 @@ export type ProjectRow = {
   status: string | null;
   priced: boolean;
   price: number | null;
-  salesMonth: { year: number; month: number; label: string } | null;
   periodHours: number | null;
   periodCost: number | null;
   periodAllocatedRevenue: number | null;
   periodProfit: number | null;
   periodMargin: number | null;
   costComplete: boolean;
-  lifetimeHours: number | null;
-  lifetimeShareOfHours: number | null;
 };
 
 export type ProjectsResponse = {
@@ -177,7 +156,6 @@ export type DepartmentsResponse = {
     department: string;
     totalHours: number | null;
     billableHours: number | null;
-    nonBillableHours: number | null;
     cost: number | null;
     costComplete: boolean;
     employees: DepartmentEmployee[];
@@ -193,7 +171,6 @@ export type ProductivityResponse = {
     name: string;
     department: string | null;
     designation: string | null;
-    typeOfExpense: string | null;
     totalHours: number | null;
     billableHours: number | null;
     nonBillableHours: number | null;
@@ -214,122 +191,94 @@ export type CategoriesResponse = {
   }[];
 };
 
-/** `year` is required by every period-scoped endpoint; `month` narrows it. */
+/** Every period-scoped endpoint takes `year`; `month` narrows it to one month. */
 function periodQuery(period: PeriodSelection): string {
   const query = new URLSearchParams({ year: String(period.year) });
   if (period.month !== null) query.set("month", String(period.month));
   return query.toString();
 }
 
-export function fetchPeriods(signal?: AbortSignal): Promise<PeriodsResponse> {
-  return apiFetch<PeriodsResponse>("/periods", { signal });
-}
-
-export function fetchDashboard(
-  period: PeriodSelection,
-  signal?: AbortSignal,
-): Promise<DashboardResponse> {
-  return apiFetch<DashboardResponse>(`/dashboard?${periodQuery(period)}`, {
-    signal,
-  });
-}
+/**
+ * Reporting data changes only when a spreadsheet is imported or an assumption is
+ * saved, and both of those invalidate `["analytics"]` explicitly
+ * (`lib/imports.ts`, `lib/settings.ts`). Because invalidation is trustworthy,
+ * these queries do not need the client's 30s default: without this, walking
+ * Dashboard → Projects → Dashboard refetches everything for no reason.
+ *
+ * `["auth", "me"]` keeps the 30s default on purpose — see README 3.8.
+ */
+const REPORTING_STALE_TIME = 5 * 60_000;
 
 /**
  * `enabled` comes from the caller's resolved authenticated state: a private
  * query must not start while the session is unresolved or signed out, or its
  * 401 would race the sign-in it is waiting for (README 4.9).
  */
-export function periodsQueryOptions(enabled: boolean) {
-  return queryOptions({
+export function usePeriods(enabled: boolean) {
+  return useQuery({
     queryKey: analyticsKeys.periods(),
-    queryFn: ({ signal }) => fetchPeriods(signal),
+    queryFn: ({ signal }) => apiFetch<PeriodsResponse>("/periods", { signal }),
+    staleTime: REPORTING_STALE_TIME,
     enabled,
   });
 }
 
-export function dashboardQueryOptions(
+/**
+ * The five period-scoped reports share one rule: each is `/<resource>` taking
+ * `year` and `month`, cached under `["analytics", resource, year, month]`. One
+ * function says that once instead of five near-identical hooks saying it apart.
+ *
+ * `keepPreviousData` is what makes a period change readable: the table dims
+ * rather than blanking to a skeleton on every month.
+ */
+function usePeriodReport<T>(
+  resource: "dashboard" | "projects" | "departments" | "productivity" | "categories",
   period: PeriodSelection,
   enabled: boolean,
 ) {
-  return queryOptions({
-    queryKey: analyticsKeys.dashboard(period),
-    queryFn: ({ signal }) => fetchDashboard(period, signal),
+  return useQuery({
+    queryKey: ["analytics", resource, period.year, period.month] as const,
+    queryFn: ({ signal }) =>
+      apiFetch<T>(`/${resource}?${periodQuery(period)}`, { signal }),
+    placeholderData: keepPreviousData,
+    staleTime: REPORTING_STALE_TIME,
     enabled,
   });
 }
 
-export function usePeriods(enabled: boolean) {
-  return useQuery(periodsQueryOptions(enabled));
-}
-
 export function useDashboard(period: PeriodSelection, enabled: boolean) {
-  return useQuery(dashboardQueryOptions(period, enabled));
+  return usePeriodReport<DashboardResponse>("dashboard", period, enabled);
 }
 
 export function useProjects(period: PeriodSelection, enabled: boolean) {
-  return useQuery(
-    queryOptions({
-      queryKey: analyticsKeys.projects(period),
-      queryFn: ({ signal }) =>
-        apiFetch<ProjectsResponse>(`/projects?${periodQuery(period)}`, {
-          signal,
-        }),
-      enabled,
-    }),
-  );
-}
-
-export function useProject(refCode: string, enabled: boolean) {
-  return useQuery(
-    queryOptions({
-      queryKey: analyticsKeys.project(refCode),
-      queryFn: ({ signal }) =>
-        apiFetch<ProjectDetailResponse>(
-          // Not period-filtered: a price only means something against all of the
-          // project's hours. The month-by-month split is inside the response.
-          `/projects/${encodeURIComponent(refCode)}`,
-          { signal },
-        ),
-      enabled,
-    }),
-  );
+  return usePeriodReport<ProjectsResponse>("projects", period, enabled);
 }
 
 export function useDepartments(period: PeriodSelection, enabled: boolean) {
-  return useQuery(
-    queryOptions({
-      queryKey: analyticsKeys.departments(period),
-      queryFn: ({ signal }) =>
-        apiFetch<DepartmentsResponse>(`/departments?${periodQuery(period)}`, {
-          signal,
-        }),
-      enabled,
-    }),
-  );
+  return usePeriodReport<DepartmentsResponse>("departments", period, enabled);
 }
 
 export function useProductivity(period: PeriodSelection, enabled: boolean) {
-  return useQuery(
-    queryOptions({
-      queryKey: analyticsKeys.productivity(period),
-      queryFn: ({ signal }) =>
-        apiFetch<ProductivityResponse>(`/productivity?${periodQuery(period)}`, {
-          signal,
-        }),
-      enabled,
-    }),
-  );
+  return usePeriodReport<ProductivityResponse>("productivity", period, enabled);
 }
 
 export function useCategories(period: PeriodSelection, enabled: boolean) {
-  return useQuery(
-    queryOptions({
-      queryKey: analyticsKeys.categories(period),
-      queryFn: ({ signal }) =>
-        apiFetch<CategoriesResponse>(`/categories?${periodQuery(period)}`, {
-          signal,
-        }),
-      enabled,
-    }),
-  );
+  return usePeriodReport<CategoriesResponse>("categories", period, enabled);
+}
+
+/**
+ * Not period-scoped, so it stays explicit: a price only means something against
+ * all of the project's hours.
+ */
+export function useProject(refCode: string, enabled: boolean) {
+  return useQuery({
+    queryKey: analyticsKeys.project(refCode),
+    queryFn: ({ signal }) =>
+      apiFetch<ProjectDetailResponse>(
+        `/projects/${encodeURIComponent(refCode)}`,
+        { signal },
+      ),
+    staleTime: REPORTING_STALE_TIME,
+    enabled,
+  });
 }

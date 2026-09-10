@@ -7,7 +7,6 @@ import { ShareBar, Tag } from "@/components/pill";
 import { usePeriodScope } from "@/components/period-scope";
 import { QueryError, TableSkeleton } from "@/components/query-states";
 import { StatCard } from "@/components/stat-card";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   TableBody,
   TableCell,
@@ -15,6 +14,7 @@ import {
   TableFooterCell,
   TableHead,
   TableHeader,
+  TablePanel,
   TableRow,
   TableScroller,
 } from "@/components/ui/table";
@@ -29,6 +29,7 @@ export function CategoriesView() {
     <>
       <PageHeader
         title="Categories"
+        badge={scope.badge}
         description="Where the time actually goes, billable and internal."
         actions={scope.filter}
       />
@@ -86,10 +87,7 @@ function CategoriesTable({ data }: { data: CategoriesResponse }) {
         />
       </div>
 
-      <Card className="py-0">
-        <CardHeader className="px-5 pt-5">
-          <CardTitle>Hours per category · {period.label}</CardTitle>
-        </CardHeader>
+      <TablePanel title={`Hours per category · ${period.label}`}>
         <TableScroller minWidth={720}>
           <TableHeader>
             <TableRow>
@@ -138,7 +136,7 @@ function CategoriesTable({ data }: { data: CategoriesResponse }) {
             </TableRow>
           </TableFooter>
         </TableScroller>
-      </Card>
+      </TablePanel>
 
       <p className="max-w-[90ch] text-[13px] text-ink-3 text-pretty">
         This page answers where the time goes. Cost is read on the Dashboard and

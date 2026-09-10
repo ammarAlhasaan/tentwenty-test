@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { Notice } from "@/components/notice";
+import { Button } from "@/components/ui/button";
 import type { Completeness } from "@/lib/analytics";
 
 /**
@@ -31,6 +33,16 @@ export function CompletenessNotice({
     <Notice
       tone="danger"
       title={`${what} for ${periodLabel} is a known subtotal, not the whole answer`}
+      // Naming a gap without offering the screen that closes it leaves the
+      // reader with a problem and no move.
+      action={
+        <Button
+          size="sm"
+          variant="outline"
+          nativeButton={false}
+          render={<Link href="/uploads">Open uploads</Link>}
+        />
+      }
     >
       {completeness.issues.length > 0 ? (
         <ul className="flex list-disc flex-col gap-1 pl-4">

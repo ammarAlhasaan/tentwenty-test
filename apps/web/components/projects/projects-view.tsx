@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { FolderKanban } from "lucide-react";
 import { CompletenessNotice } from "@/components/completeness-notice";
@@ -9,7 +10,6 @@ import { PageHeader } from "@/components/page-header";
 import { PercentPill, Tag } from "@/components/pill";
 import { usePeriodScope } from "@/components/period-scope";
 import { QueryError, TableSkeleton } from "@/components/query-states";
-import { Card } from "@/components/ui/card";
 import {
   TableBody,
   TableCell,
@@ -18,6 +18,7 @@ import {
   TableHead,
   TableHeader,
   TableName,
+  TablePanel,
   TableRow,
   TableScroller,
 } from "@/components/ui/table";
@@ -32,6 +33,7 @@ export function ProjectsView() {
     <>
       <PageHeader
         title="Projects"
+        badge={scope.badge}
         description="What each project was sold for, what it cost, and what was left."
         actions={scope.filter}
       />
@@ -54,6 +56,22 @@ export function ProjectsView() {
 function ProjectsTable({ data }: { data: ProjectsResponse }) {
   const { projects, period, completeness } = data;
 
+  // Only the additive columns are totalled. Profit and margin are not: the API
+  // withholds them per project when an input is missing, and summing what is
+  // left would present a partial figure as a whole one.
+  const totals = useMemo(
+    () =>
+      projects.reduce(
+        (running, project) => ({
+          hours: running.hours + (project.periodHours ?? 0),
+          cost: running.cost + (project.periodCost ?? 0),
+          revenue: running.revenue + (project.periodAllocatedRevenue ?? 0),
+        }),
+        { hours: 0, cost: 0, revenue: 0 },
+      ),
+    [projects],
+  );
+
   if (projects.length === 0) {
     return (
       <EmptyState
@@ -64,18 +82,6 @@ function ProjectsTable({ data }: { data: ProjectsResponse }) {
     );
   }
 
-  // Only the additive columns are totalled. Profit and margin are not: the API
-  // withholds them per project when an input is missing, and summing what is
-  // left would present a partial figure as a whole one.
-  const totals = projects.reduce(
-    (running, project) => ({
-      hours: running.hours + (project.periodHours ?? 0),
-      cost: running.cost + (project.periodCost ?? 0),
-      revenue: running.revenue + (project.periodAllocatedRevenue ?? 0),
-    }),
-    { hours: 0, cost: 0, revenue: 0 },
-  );
-
   return (
     <>
       <p className="text-sm text-ink-2">
@@ -84,7 +90,7 @@ function ProjectsTable({ data }: { data: ProjectsResponse }) {
         project.
       </p>
 
-      <Card className="py-0">
+      <TablePanel>
         <TableScroller minWidth={880}>
           <TableHeader>
             <TableRow>
@@ -168,7 +174,7 @@ function ProjectsTable({ data }: { data: ProjectsResponse }) {
             </TableRow>
           </TableFooter>
         </TableScroller>
-      </Card>
+      </TablePanel>
 
       <CompletenessNotice
         completeness={completeness}

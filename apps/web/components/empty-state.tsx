@@ -24,7 +24,11 @@ export function EmptyState({
         <p className="max-w-[46ch] text-sm text-ink-2 text-pretty">
           {description}
         </p>
-        {action ? <div className="mt-2">{action}</div> : null}
+        {action ? (
+          <div className="mt-2 flex flex-wrap justify-center gap-2">
+            {action}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

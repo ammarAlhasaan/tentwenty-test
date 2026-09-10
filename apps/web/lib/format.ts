@@ -15,11 +15,6 @@ const currency = new Intl.NumberFormat("en-AE", {
   maximumFractionDigits: 0,
 });
 
-const hours = new Intl.NumberFormat("en-AE", {
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-});
-
 const number = new Intl.NumberFormat("en-AE", {
   maximumFractionDigits: 1,
 });
@@ -42,10 +37,6 @@ export function formatCurrency(value: number | null | undefined): string {
   return value == null ? ABSENT : currency.format(value);
 }
 
-export function formatHours(value: number | null | undefined): string {
-  return value == null ? ABSENT : `${hours.format(value)} h`;
-}
-
 export function formatNumber(value: number | null | undefined): string {
   return value == null ? ABSENT : number.format(value);
 }
@@ -65,4 +56,19 @@ export function formatPercent(value: number | null | undefined): string {
  */
 export function formatShare(value: number | null | undefined): string {
   return value == null ? ABSENT : sharePercent.format(value);
+}
+
+/**
+ * Built once, like the number formatters above: constructing an `Intl`
+ * formatter per table row is the expensive part, not the formatting.
+ */
+const dateTime = new Intl.DateTimeFormat("en-AE", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+export function formatDateTime(value: string | null | undefined): string {
+  if (!value) return ABSENT;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? ABSENT : dateTime.format(parsed);
 }

@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Gauge } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { PercentPill } from "@/components/pill";
 import { usePeriodScope } from "@/components/period-scope";
 import { QueryError, TableSkeleton } from "@/components/query-states";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   TableBody,
   TableCell,
@@ -16,6 +15,7 @@ import {
   TableHead,
   TableHeader,
   TableName,
+  TablePanel,
   TableRow,
   TableScroller,
 } from "@/components/ui/table";
@@ -32,6 +32,7 @@ export function ProductivityView() {
     <>
       <PageHeader
         title="Productivity"
+        badge={scope.badge}
         description="Billable hours as a share of everything logged, per person."
         actions={scope.filter}
       />
@@ -57,18 +58,41 @@ function ProductivityTable({ data }: { data: ProductivityResponse }) {
   // A view filter over data already in hand — local UI state, no request.
   const [department, setDepartment] = useState(ALL);
 
-  const departments = [
-    ...new Set(
-      employees
-        .map((employee) => employee.department)
-        .filter((name): name is string => Boolean(name)),
-    ),
-  ].sort();
+  const departments = useMemo(
+    () =>
+      [
+        ...new Set(
+          employees
+            .map((employee) => employee.department)
+            .filter((name): name is string => Boolean(name)),
+        ),
+      ].sort(),
+    [employees],
+  );
 
-  const rows =
-    department === ALL
-      ? employees
-      : employees.filter((employee) => employee.department === department);
+  const rows = useMemo(
+    () =>
+      department === ALL
+        ? employees
+        : employees.filter((employee) => employee.department === department),
+    [employees, department],
+  );
+
+  // The footer is the agency, whatever the filter above it: the API's own
+  // company figure, over the API's own totals. Summing the filtered rows under
+  // an "Agency" label would put one department's hours beside everyone's
+  // productivity.
+  const totals = useMemo(
+    () =>
+      employees.reduce(
+        (running, employee) => ({
+          hours: running.hours + (employee.totalHours ?? 0),
+          billable: running.billable + (employee.billableHours ?? 0),
+        }),
+        { hours: 0, billable: 0 },
+      ),
+    [employees],
+  );
 
   if (employees.length === 0) {
     return (
@@ -80,23 +104,12 @@ function ProductivityTable({ data }: { data: ProductivityResponse }) {
     );
   }
 
-  const totals = rows.reduce(
-    (running, employee) => ({
-      hours: running.hours + (employee.totalHours ?? 0),
-      billable: running.billable + (employee.billableHours ?? 0),
-    }),
-    { hours: 0, billable: 0 },
-  );
-
   return (
     <>
-      <Card className="py-0">
-        <CardHeader className="flex-row flex-wrap items-center gap-3 px-5 pt-5">
-          <CardTitle>
-            {rows.length} {rows.length === 1 ? "person" : "people"} ·{" "}
-            {period.label}
-          </CardTitle>
-          <label className="ml-auto flex items-center gap-2 text-[13px] font-semibold">
+      <TablePanel
+        title={`${rows.length} ${rows.length === 1 ? "person" : "people"} · ${period.label}`}
+        actions={
+          <label className="flex items-center gap-2 text-[13px] font-semibold">
             <span className="text-ink-2">Department</span>
             <select
               value={department}
@@ -111,8 +124,8 @@ function ProductivityTable({ data }: { data: ProductivityResponse }) {
               ))}
             </select>
           </label>
-        </CardHeader>
-
+        }
+      >
         <TableScroller minWidth={680}>
           <TableHeader>
             <TableRow>
@@ -155,9 +168,7 @@ function ProductivityTable({ data }: { data: ProductivityResponse }) {
           </TableBody>
           <TableFooter>
             <TableRow>
-              <TableFooterCell align="start">
-                {department === ALL ? "Agency" : department}
-              </TableFooterCell>
+              <TableFooterCell align="start">Agency</TableFooterCell>
               <TableFooterCell />
               <TableFooterCell numeric>
                 {formatNumber(totals.hours)}
@@ -165,17 +176,16 @@ function ProductivityTable({ data }: { data: ProductivityResponse }) {
               <TableFooterCell numeric>
                 {formatNumber(totals.billable)}
               </TableFooterCell>
+              {/* The agency figure, whatever the filter. Recomputing it for a
+                  filtered subset would be a second implementation of a rule
+                  apps/api owns and already reports. */}
               <TableFooterCell numeric>
-                {department === ALL
-                  ? formatShare(companyProductivity)
-                  : formatShare(
-                      totals.hours > 0 ? totals.billable / totals.hours : null,
-                    )}
+                {formatShare(companyProductivity)}
               </TableFooterCell>
             </TableRow>
           </TableFooter>
         </TableScroller>
-      </Card>
+      </TablePanel>
 
       <p className="max-w-[90ch] text-[13px] text-ink-3 text-pretty">
         Productivity is billable hours divided by total hours logged. Which

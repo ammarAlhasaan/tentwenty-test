@@ -8,7 +8,7 @@ import { useMe } from "@/lib/auth";
 import { consumeDeliberateSignOut, safeReturnTo } from "@/lib/session";
 
 /**
- * Shows the application only once the session check has answered.
+ * Shows the page body only once the session check has answered.
  *
  * This is the single owner of navigation away from the application: sign-out,
  * expiry and a plain signed-out visit all leave through here, so two redirects
@@ -17,6 +17,10 @@ import { consumeDeliberateSignOut, safeReturnTo } from "@/lib/session";
  *
  * It is a UX boundary, not a security one — apps/api's SessionAuthGuard decides
  * what data anyone may have.
+ *
+ * It wraps `<main>` rather than the whole shell: the sidebar, brand, navigation
+ * and header are public and need no data, so making them wait on /auth/me only
+ * delays the largest paint on the screen and guarantees a layout shift.
  */
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -57,7 +61,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (isError) {
     return (
-      <div className="mx-auto w-full max-w-2xl px-4 py-16 sm:px-6">
+      <div className="mx-auto w-full max-w-2xl py-10">
         <ErrorState
           title="Can't reach the service"
           description="We couldn't check whether you're signed in. The API may be down or unreachable."
@@ -69,13 +73,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (isPending || user === null) {
     return (
-      <div
-        className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6"
-        aria-busy
-        role="status"
-      >
+      <div className="flex flex-col gap-2" aria-busy role="status">
         <span className="sr-only">Checking your session</span>
         <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-72" />
       </div>
     );
   }

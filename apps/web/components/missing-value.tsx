@@ -17,7 +17,3 @@ export function MissingValue({ className }: { className?: string }) {
     </span>
   );
 }
-
-export function isAbsent(value: string): boolean {
-  return value === ABSENT;
-}

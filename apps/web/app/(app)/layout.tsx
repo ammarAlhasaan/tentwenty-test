@@ -4,15 +4,17 @@ import { AuthGate } from "@/components/auth-gate";
 import { Brand } from "@/components/brand";
 import { UserMenu } from "@/components/user-menu";
 
-// The shell FE-01 established, wearing the approved design and still behind the
-// session check. AuthGate returns a fragment, so the body's flex column still
-// lays these out.
+// The shell FE-01 established, wearing the approved design.
+//
+// The chrome renders unconditionally: brand, navigation and header are public
+// and data-free, so they paint immediately. AuthGate wraps <main> alone, which
+// is where anything private appears.
 //
 // The gate is a user-experience boundary. SessionAuthGuard in apps/api is the
-// authorization boundary; nothing rendered below is private data.
+// authorization boundary; nothing rendered here is private data.
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
-    <AuthGate>
+    <>
       <a
         href="#main"
         className="sr-only rounded-lg bg-card px-4 py-2 text-sm font-semibold shadow-lift focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50"
@@ -58,10 +60,10 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
             id="main"
             className="flex min-w-0 flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8"
           >
-            {children}
+            <AuthGate>{children}</AuthGate>
           </main>
         </div>
       </div>
-    </AuthGate>
+    </>
   );
 }

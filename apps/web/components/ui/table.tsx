@@ -1,6 +1,41 @@
 import { cn } from "cn";
 
 /**
+ * A table in the design's panel: the card surface with no vertical padding of
+ * its own, because the header and the table bring theirs. Every table screen was
+ * writing `<Card className="py-0">` and then cancelling the header padding too,
+ * which meant the card's spacing token had no effect anywhere it was used.
+ */
+function TablePanel({
+  title,
+  subtitle,
+  actions,
+  children,
+}: {
+  title?: string;
+  subtitle?: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-card text-sm text-card-foreground shadow-card">
+      {title ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 pt-5 pb-3.5">
+          <h2 className="font-heading text-base leading-snug font-bold">
+            {title}
+          </h2>
+          {subtitle ? (
+            <p className="text-[12.5px] text-ink-3">{subtitle}</p>
+          ) : null}
+          {actions ? <div className="ms-auto">{actions}</div> : null}
+        </div>
+      ) : null}
+      {children}
+    </div>
+  );
+}
+
+/**
  * The design's table. Every figure column is right-aligned and mono; the first
  * column is the row's name and stays left. `minWidth` keeps columns readable on
  * a phone and lets the wrapper scroll rather than the page.
@@ -137,6 +172,7 @@ function TableName({
 }
 
 export {
+  TablePanel,
   TableScroller,
   TableHeader,
   TableBody,

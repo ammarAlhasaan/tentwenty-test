@@ -10,7 +10,6 @@ import { PageHeader } from "@/components/page-header";
 import { Tag } from "@/components/pill";
 import { usePeriodScope } from "@/components/period-scope";
 import { QueryError, TableSkeleton } from "@/components/query-states";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   TableBody,
   TableCell,
@@ -19,6 +18,7 @@ import {
   TableHead,
   TableHeader,
   TableName,
+  TablePanel,
   TableRow,
   TableScroller,
 } from "@/components/ui/table";
@@ -35,6 +35,7 @@ export function DepartmentsView() {
     <>
       <PageHeader
         title="Departments"
+        badge={scope.badge}
         description="Hours and cost per department, and the people inside each one."
         actions={scope.filter}
       />
@@ -66,10 +67,6 @@ function DepartmentsTables({
   // The drill-down is local UI state, not API data: the response already nests
   // every department's people, so opening one costs no request.
   const [opened, setOpened] = useState<string | null>(null);
-  const selected =
-    departments.find((entry) => entry.department === opened) ??
-    departments.find((entry) => entry.department === focus) ??
-    departments[0];
 
   if (departments.length === 0) {
     return (
@@ -80,6 +77,11 @@ function DepartmentsTables({
       />
     );
   }
+
+  const selected =
+    departments.find((entry) => entry.department === opened) ??
+    departments.find((entry) => entry.department === focus) ??
+    departments[0];
 
   const totals = departments.reduce(
     (running, entry) => ({
@@ -93,10 +95,7 @@ function DepartmentsTables({
   return (
     <>
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-start">
-        <Card className="py-0">
-          <CardHeader className="px-5 pt-5">
-            <CardTitle>{period.label}</CardTitle>
-          </CardHeader>
+        <TablePanel title={period.label}>
           <TableScroller minWidth={620}>
             <TableHeader>
               <TableRow>
@@ -156,16 +155,13 @@ function DepartmentsTables({
               </TableRow>
             </TableFooter>
           </TableScroller>
-        </Card>
+        </TablePanel>
 
         {selected ? (
-          <Card className="py-0">
-            <CardHeader className="px-5 pt-5">
-              <CardTitle>{selected.department}</CardTitle>
-              <p className="text-[12.5px] text-ink-3">
-                every person in this department
-              </p>
-            </CardHeader>
+          <TablePanel
+            title={selected.department}
+            subtitle="every person in this department"
+          >
             <TableScroller minWidth={380}>
               <TableHeader>
                 <TableRow>
@@ -197,7 +193,7 @@ function DepartmentsTables({
                 ))}
               </TableBody>
             </TableScroller>
-          </Card>
+          </TablePanel>
         ) : null}
       </div>
 
