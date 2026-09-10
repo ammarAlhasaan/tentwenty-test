@@ -14,6 +14,11 @@ const FIELD_CLASS =
 
 const LABEL_CLASS = "text-[13px] font-semibold";
 
+// The user the API seeds on first start outside production (apps/api/src/auth/
+// auth.module.ts). Prefilled so a reviewer can sign in without leaving the page.
+const DEMO_EMAIL = "demo@tentwenty.local";
+const DEMO_PASSWORD = "demo-password-2026";
+
 function messageFor(error: unknown): string {
   if (!isApiError(error)) return "Something went wrong. Please try again.";
   if (error.kind === "network") {
@@ -49,8 +54,8 @@ export function LoginForm() {
   const { data: user } = useMe();
   const signIn = useLogin();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(DEMO_EMAIL);
+  const [password, setPassword] = useState(DEMO_PASSWORD);
   const [visible, setVisible] = useState(false);
 
   const reset = signIn.reset;
@@ -81,6 +86,12 @@ export function LoginForm() {
           Please sign in again to carry on.
         </Notice>
       ) : null}
+
+      <Notice tone="info" title="Demo account">
+        Email <strong>{DEMO_EMAIL}</strong>, password{" "}
+        <strong>{DEMO_PASSWORD}</strong>. Both fields are filled in already —
+        just press Sign in.
+      </Notice>
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="email" className={LABEL_CLASS}>
