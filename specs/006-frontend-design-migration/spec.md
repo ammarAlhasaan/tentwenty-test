@@ -23,10 +23,10 @@ clearly-labelled sample module with integration deferred (Constitution VI). Duri
 `004-assessment-backend` was merged to `main` (PR #4, `5e4fd9a`), landing `/periods`, `/dashboard`,
 `/projects`, `/departments`, `/productivity`, `/categories`, `/settings` and `/imports`.
 
-The branch was rebased onto that `main` and **the Dashboard was integrated against the real
-endpoints**: `lib/analytics.ts` replaced the sample module, which was deleted. The remaining
-screens are still unintegrated — each is its own screen's worth of work and belongs to a later
-frontend spec.
+The branch was rebased onto that `main` and **every screen was integrated against the real
+endpoints**: `lib/analytics.ts` replaced the sample module, which was deleted, and the reporting,
+upload and assumptions screens were built out. No preview data and no permanently-empty screen
+remains.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -80,23 +80,68 @@ five metrics — total hours, billable hours, cost, revenue, margin — and the 
 
 ---
 
-### User Story 3 - Every other screen states honestly that it has no data yet (Priority: P2)
+### User Story 3 - Every reporting screen shows the loaded data (Priority: P2)
 
-Projects, Productivity and Categories carry the design's language and each explains, in the
-design's empty-state form, that the screen is waiting on ingested spreadsheets.
+Projects (with a per-project page), Departments, Productivity and Categories each read their own
+endpoint for the selected period, in the design's language.
 
-**Why this priority**: an honest empty screen in the right visual language is deliverable now; a
-populated one is not.
+**Why this priority**: the Dashboard answers "did we make money"; these answer "where did it come
+from", which is the rest of the assessment.
 
-**Independent Test**: visit each section and confirm the empty state and that no request is made
-to an endpoint that does not exist.
+**Independent Test**: load the workbooks, then visit each section.
 
 **Acceptance Scenarios**:
 
-1. **Given** any of the three screens, **When** it loads, **Then** it shows the design's empty
-   state naming what will appear once data is ingested.
-2. **Given** any of the three screens, **When** it loads, **Then** the browser makes no request to
-   an assessment endpoint.
+1. **Given** ingested data, **When** a reporting screen loads, **Then** its figures come from its
+   own endpoint for the period in the URL.
+2. **Given** a period with no rows, **When** the screen loads, **Then** it shows an empty state
+   naming the period rather than a table of zeroes.
+3. **Given** a project row, **When** it is opened, **Then** its own page shows the price, the
+   month-by-month split, the departments and the per-employee contribution.
+4. **Given** a value the API reports as `null`, **When** it renders, **Then** it is an em dash with
+   an accessible label — never a zero.
+
+---
+
+### User Story 5 - A new user can load data without leaving the app (Priority: P1)
+
+Somebody signing in to an empty instance is told what is missing, sent to an uploads screen, and
+can either drop the three spreadsheets in or load the supplied sample workbooks with one button.
+
+**Why this priority**: without it the first-run empty state names a fix the product does not offer,
+and the whole application is unreachable without a terminal.
+
+**Independent Test**: empty the database, sign in, and reach a populated dashboard using only the
+UI.
+
+**Acceptance Scenarios**:
+
+1. **Given** an empty instance, **When** the Dashboard loads, **Then** the empty state links to the
+   uploads screen.
+2. **Given** the uploads screen, **When** "Load the sample workbooks" is pressed, **Then** the
+   three workbooks are imported and every reporting screen fills in without a reload.
+3. **Given** a valid workbook chosen or dropped, **When** it uploads, **Then** the screen reports
+   the rows accepted and the periods replaced.
+4. **Given** an unreadable file, **When** it uploads, **Then** the screen shows the API's own
+   message and states that nothing was changed.
+
+---
+
+### User Story 6 - The assumptions behind every figure can be changed (Priority: P2)
+
+Which categories count as billable, and the monthly overhead, are editable, and saving them
+recalculates every screen.
+
+**Why this priority**: the assessment asks for both to be configurable without editing code.
+
+**Independent Test**: change the overhead, save, and read the Dashboard's cost.
+
+**Acceptance Scenarios**:
+
+1. **Given** a changed overhead, **When** it is saved, **Then** the API recalculates and the
+   reporting screens show the new figures with no reload.
+2. **Given** no category ticked, or a negative overhead, **When** the form is reviewed, **Then**
+   saving is blocked with the reason shown inline.
 
 ---
 
@@ -143,8 +188,14 @@ must not regress.
 - **FR-008** No screen may present a figure as an API integration while the backend contract it
   needs is unlanded. The Projects, Productivity and Categories screens therefore stay on their
   empty states and issue no request.
-- **FR-009** Dashboard queries MUST follow `apps/web/README.md` section 10: keys outside the
-  `"auth"` namespace, `signal` forwarded, and `enabled` set from the resolved authenticated state.
+- **FR-009** Every query MUST follow `apps/web/README.md` section 10: keys outside the `"auth"`
+  namespace, `signal` forwarded, and `enabled` set from the resolved authenticated state. Every
+  mutation MUST stamp the session in `onMutate` and check it before writing to the cache.
+- **FR-010** Changing the year in the period filter MUST NOT leave a month selected that the new
+  year does not hold. Where the month cannot be kept, the selection falls back to the whole year.
+- **FR-011** A data-quality warning MUST be shown in the scope it describes. The period's own
+  `completeness.issues` belong on the period's screen; the standing warnings `GET /periods`
+  reports for the dataset belong with the files that produced them.
 
 ### Non-functional / constraints
 
@@ -161,10 +212,10 @@ must not regress.
 
 ## Out of Scope
 
-- Integrating `/projects`, `/departments`, `/productivity`, `/categories`, `/settings` and
-  `/imports`. These are now available, but each is a screen's worth of work with its own tables,
-  drill-downs and forms; they belong to a later frontend spec. `/periods` and `/dashboard` **are**
-  integrated.
+- Charts. The design has none and the brief asks for none.
+- Editing or deleting an import after the fact; the API offers no endpoint for it.
+- A department's own page. The drill-down is nested inside the departments response, so opening a
+  department costs no request and needs no route.
 - The prototype's Departments, Uploads, Assumptions and Project-detail screens. Each exists only
   to display backend data that has no landed contract; adding the routes now would create
   navigation that leads nowhere.

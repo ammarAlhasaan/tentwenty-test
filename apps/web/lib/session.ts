@@ -131,9 +131,20 @@ export function consumeDeliberateSignOut(): boolean {
  * Carrying the query through would mean accepting an arbitrary string here,
  * which is the gap the allowlist exists to close.
  *
- * A new screen is added by appending its path to this list and to AppNav.
+ * A new screen is added by appending its path to this list and to AppNav. A
+ * screen with a parameter in its path — a project's own page — is deliberately
+ * absent: an allowlist cannot enumerate one, so it falls back to `/` rather than
+ * inviting a sanitiser back in.
  */
-const RETURN_TO = ["/", "/projects", "/productivity", "/categories"] as const;
+const RETURN_TO = [
+  "/",
+  "/projects",
+  "/departments",
+  "/productivity",
+  "/categories",
+  "/uploads",
+  "/assumptions",
+] as const;
 
 export function safeReturnTo(value: string | null | undefined): string {
   return RETURN_TO.includes(value as (typeof RETURN_TO)[number]) ? value! : "/";

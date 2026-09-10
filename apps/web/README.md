@@ -310,11 +310,29 @@ been deleted. If preview data is ever needed again, the rule it followed applies
 module, labelled on screen wherever it appears, never reachable through `apiFetch`, and performing
 no arithmetic — `apps/api` owns the cost model.
 
-**11.7 [ours] A screen with no landed integration renders its empty state and issues no request.**
-Projects, Productivity and Categories are in that position today: their endpoints exist, but the
-screens are a later spec's work, and a page that half-integrates is worse than one that says it has
-nothing yet.
+**11.7 [ours] Every screen reads its own endpoint.** No screen renders a permanent empty state. An
+empty state means the API answered and had nothing for that period — which is a fact about the
+data, not about the frontend.
 
 **11.8 [ours] The period filter's options come from the API, not from a constant.** `GET /periods`
 decides which years and months can be chosen, so an out-of-range period is only reachable by URL —
 where the `/dashboard` query's `enabled` gate keeps it from issuing a request at all.
+
+**11.9 [ours] A data-quality warning is shown in the scope it describes.** `GET /periods` reports
+standing issues for the *default year*; those belong on the uploads screen, beside the files that
+produced them. A period-scoped screen shows that period's own `completeness.issues` and nothing
+else, because a warning about March is misleading on a page showing July.
+
+**11.10 [ours] Changing the year cannot leave an impossible month selected.** Not every year holds
+every month. Where the selected month is not in the new year, the selection falls back to the whole
+year rather than leaving the filter disagreeing with the figures.
+
+**11.11 [ours] Uploads use the existing transport.** `apiFetch` passes a `FormData` body through
+untouched, so the three import endpoints need no second transport and no `Content-Type` of their
+own. Both write paths — importing and saving assumptions — stamp the session in `onMutate`, check
+it before writing to the cache, and then invalidate `["analytics"]`: the API recalculates, the
+frontend does not.
+
+**11.12 [ours] `usePeriodScope` owns the period-scoped screens' shared shape.** Five screens need
+the same loaded periods, the same URL-backed selection, the same filter and the same four states. A
+sixth screen with those needs uses it; one without them does not.

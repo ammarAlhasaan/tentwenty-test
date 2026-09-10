@@ -28,10 +28,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
           >
             <Brand />
           </Link>
-          <nav aria-label="Sections">
-            <p className="px-2.5 pb-1.5 text-[10.5px] tracking-[0.14em] text-ink-3 uppercase">
-              Reporting
-            </p>
+          <nav aria-label="Sections" className="overflow-y-auto">
             <AppNav layout="rail" />
           </nav>
         </aside>

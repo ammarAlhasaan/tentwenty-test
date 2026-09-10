@@ -4,14 +4,39 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, FolderKanban, Gauge, Tags } from "lucide-react";
+import {
+  BarChart3,
+  Building2,
+  CloudUpload,
+  FolderKanban,
+  Gauge,
+  SlidersHorizontal,
+  Tags,
+} from "lucide-react";
 import { cn } from "cn";
 
-const sections = [
-  { href: "/", label: "Dashboard", icon: BarChart3 },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/productivity", label: "Productivity", icon: Gauge },
-  { href: "/categories", label: "Categories", icon: Tags },
+/**
+ * The two groups the design uses: what the agency reads, and what feeds it.
+ * Every entry here is a route that exists and shows something.
+ */
+const groups = [
+  {
+    label: "Reporting",
+    sections: [
+      { href: "/", label: "Dashboard", icon: BarChart3 },
+      { href: "/projects", label: "Projects", icon: FolderKanban },
+      { href: "/departments", label: "Departments", icon: Building2 },
+      { href: "/productivity", label: "Productivity", icon: Gauge },
+      { href: "/categories", label: "Categories", icon: Tags },
+    ],
+  },
+  {
+    label: "Data",
+    sections: [
+      { href: "/uploads", label: "Uploads", icon: CloudUpload },
+      { href: "/assumptions", label: "Assumptions", icon: SlidersHorizontal },
+    ],
+  },
 ] as const;
 
 function isCurrent(pathname: string, href: string) {
@@ -22,6 +47,47 @@ function isCurrent(pathname: string, href: string) {
 export function AppNav({ layout }: { layout: "rail" | "bar" }) {
   const pathname = usePathname();
 
+  // The rail has room for the group headings the design shows; the bar does not,
+  // so it flattens to one scrollable row.
+  if (layout === "rail") {
+    return (
+      <div className="flex flex-col gap-1">
+        {groups.map((group) => (
+          <div key={group.label}>
+            <p className="px-2.5 pt-3 pb-1.5 text-[10.5px] tracking-[0.14em] text-ink-3 uppercase">
+              {group.label}
+            </p>
+            <NavList
+              sections={group.sections}
+              pathname={pathname}
+              layout="rail"
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <NavList
+      sections={groups.flatMap((group) => [...group.sections])}
+      pathname={pathname}
+      layout="bar"
+    />
+  );
+}
+
+type Section = { href: string; label: string; icon: typeof BarChart3 };
+
+function NavList({
+  sections,
+  pathname,
+  layout,
+}: {
+  sections: readonly Section[];
+  pathname: string;
+  layout: "rail" | "bar";
+}) {
   return (
     <ul
       className={cn(

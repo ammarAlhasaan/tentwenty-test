@@ -101,3 +101,37 @@ deferred integration became possible and was taken.
   whole-year view.
 - [x] **T033** Re-run `tsc --noEmit`, `lint` and `build`; re-verify in the browser against the API
   with the supplied workbooks loaded, and against an empty database.
+
+## Phase 8 — Review follow-up: the remaining screens
+
+Review of `92d35f0` found four things: three reporting screens still rendered a permanent empty
+state, a new user could not load data without a terminal, the year could strip a selected month,
+and `/periods` warnings were shown outside the scope they describe. All four are addressed here.
+
+- [x] **T034** Extend `lib/analytics.ts` with `/projects`, `/projects/:refCode`, `/departments`,
+  `/productivity` and `/categories` — duplicated types, `signal` forwarded, `enabled` gating.
+- [x] **T035** Add `lib/settings.ts` (`GET`/`PUT /settings`) and `lib/imports.ts`
+  (`GET /imports`, the three multipart uploads, `POST /imports/sample`). Both mutations stamp the
+  session and invalidate `["analytics"]` on success.
+- [x] **T036** Restore `components/ui/table.tsx` in the design's styling — six screens need it now.
+  Add `components/pill.tsx` (percent pill, tag, share bar) and `components/query-states.tsx`.
+- [x] **T037** Add `components/period-scope.tsx`: the loaded periods, the URL-backed selection, the
+  filter, and the shared pending / error / no-data / not-covered states.
+- [x] **T038** **[P2-3]** Make a year change keep the month only when the new year holds it, and
+  otherwise fall back to the whole year.
+- [x] **T039** **[P2-4]** Move the standing `/periods` warnings to the uploads screen and show the
+  period's own `completeness.issues` on each period-scoped screen, via `CompletenessNotice`.
+- [x] **T040** Build the Projects list and the per-project page (price, month-by-month split,
+  departments, per-employee contribution, unpriced and cost-partial states).
+- [x] **T041** Build Departments with its nested people drill-down, and Productivity with its
+  department filter.
+- [x] **T042** Build Categories: billable/internal split, share bars, and the direct-cost note.
+- [x] **T043** **[P1-2]** Build the Uploads screen: three drop targets wired to the real multipart
+  endpoints, a "Load the sample workbooks" button, import history, and per-import results.
+- [x] **T044** Build Assumptions: overhead and billable categories, validated inline, saved through
+  `PUT /settings`.
+- [x] **T045** Add Departments, Uploads and Assumptions to `AppNav` (in the design's two groups)
+  and to `safeReturnTo`.
+- [x] **T046** Re-run `tsc --noEmit`, `lint` and `build`; verify every screen in the browser
+  against the running API, including an empty database, the sample-load button, a real multipart
+  upload, a rejected upload, and a saved assumption changing the reported figures.

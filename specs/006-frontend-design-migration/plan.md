@@ -78,8 +78,38 @@ Two integration details worth recording:
   "Whole year", and the banner's sentence changes with it — "made money this month" is false for a
   twelve-month view.
 
-Still unintegrated: `/projects`, `/departments`, `/productivity`, `/categories`, `/settings`,
-`/imports`. Each is its own screen. Their pages keep the design's empty state and issue no request.
+**Stage 3** — the remaining screens. `lib/analytics.ts` grew the four reporting endpoints plus the
+project detail; `lib/settings.ts` and `lib/imports.ts` were added for the two write-bearing
+screens. Nothing is left rendering a permanent empty state.
+
+Three things earned a shared component rather than a copy per screen:
+
+- **`usePeriodScope`** — five screens need the same loaded periods, the same URL-backed selection,
+  the same filter, and the same four states before any figure can be shown.
+- **`ui/table.tsx`** — deleted in stage 1 when the placeholder table went, and brought back here
+  because six screens now genuinely need one. Its columns are right-aligned and mono by default,
+  which is the rule the design applies to every figure.
+- **`CompletenessNotice`** — every calculated response carries the same `completeness` block, and
+  it must be read in the scope it describes.
+
+**Mutations.** Both write paths stamp the session in `onMutate` and check the stamp before touching
+the cache (README 5.2), then invalidate `["analytics"]` — saving an assumption or importing a
+workbook changes every reported figure, and the API is the only thing that recalculates them.
+
+**Uploads go through `apiFetch` as `FormData`.** The transport already passes a `FormData` body
+through untouched so the browser keeps its own multipart boundary (README 1.5); no second transport
+was needed.
+
+### Two review findings, and what changed
+
+- **The year could strip the month.** Choosing March and then a year without March kept `month=3`
+  in the URL while the filter's month list no longer offered it — an empty state with a filter that
+  disagreed with it. `usePeriodScope.selectPeriod` now falls back to the whole year, the one
+  selection every covered year supports.
+- **Warnings were shown out of scope.** `GET /periods` reports standing issues for the *default
+  year*, and the Dashboard rendered them whatever period was on screen. They moved to the uploads
+  screen, beside the files that produced them; the Dashboard now shows only the selected period's
+  own `completeness.issues`.
 
 ### Period state
 

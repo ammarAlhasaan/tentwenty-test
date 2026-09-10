@@ -1,22 +1,13 @@
 "use client";
 
-import { CalendarClock, Inbox } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { EmptyState } from "@/components/empty-state";
-import { ErrorState } from "@/components/error-state";
-import { Notice } from "@/components/notice";
+import { CompletenessNotice } from "@/components/completeness-notice";
 import { PageHeader } from "@/components/page-header";
-import { PeriodFilter, periodLabel } from "@/components/period-filter";
+import { usePeriodScope } from "@/components/period-scope";
+import { QueryError } from "@/components/query-states";
 import { StatCard } from "@/components/stat-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VerdictBanner } from "@/components/dashboard/verdict-banner";
-import { useMe } from "@/lib/auth";
-import {
-  useDashboard,
-  usePeriods,
-  type PeriodSelection,
-  type PeriodsResponse,
-} from "@/lib/analytics";
+import { useDashboard, type DashboardResponse } from "@/lib/analytics";
 import {
   formatCurrency,
   formatNumber,
@@ -24,187 +15,43 @@ import {
   formatShare,
 } from "@/lib/format";
 
-/**
- * The selected period lives in the URL: it is navigational state the browser
- * already owns, and a store holding it would duplicate the address bar for one
- * consumer. `safeReturnTo` allowlists pathnames only, so a session expiry returns
- * to the default period — documented in lib/session.ts.
- */
-function useRequestedPeriod(fallbackYear: number | null): PeriodSelection | null {
-  const params = useSearchParams();
-  const rawYear = params.get("year");
-  const rawMonth = params.get("month");
-
-  const year = Number(rawYear);
-  const month = Number(rawMonth);
-
-  const resolvedYear =
-    rawYear !== null && Number.isInteger(year) && year > 0 ? year : fallbackYear;
-
-  if (resolvedYear === null) return null;
-
-  return {
-    year: resolvedYear,
-    month:
-      rawMonth !== null && Number.isInteger(month) && month >= 1 && month <= 12
-        ? month
-        : null,
-  };
-}
-
-function isCovered(periods: PeriodsResponse, period: PeriodSelection): boolean {
-  const year = periods.years.find((entry) => entry.year === period.year);
-  if (!year) return false;
-  if (period.month === null) return true;
-  return year.months.some((month) => month.month === period.month);
-}
-
 export function DashboardView() {
-  const router = useRouter();
-  const pathname = usePathname();
-
-  // Nothing private starts until the session has resolved to a user
-  // (apps/web/README.md, 4.9).
-  const { data: user } = useMe();
-  const signedIn = Boolean(user);
-
-  const periods = usePeriods(signedIn);
-  const requested = useRequestedPeriod(periods.data?.defaultYear ?? null);
-
-  const covered =
-    periods.data && requested ? isCovered(periods.data, requested) : false;
-
-  const dashboard = useDashboard(
-    requested ?? { year: 0, month: null },
-    signedIn && covered,
-  );
-
-  function selectPeriod(period: PeriodSelection) {
-    const query = new URLSearchParams({ year: String(period.year) });
-    if (period.month !== null) query.set("month", String(period.month));
-    router.replace(`${pathname}?${query}`, { scroll: false });
-  }
-
-  const header = (actions?: React.ReactNode) => (
-    <PageHeader
-      title="Dashboard"
-      description="Hours, cost, revenue and margin across the agency."
-      actions={actions}
-    />
-  );
-
-  if (periods.isPending) {
-    return (
-      <>
-        {header()}
-        <DashboardSkeleton />
-      </>
-    );
-  }
-
-  if (periods.isError) {
-    return (
-      <>
-        {header()}
-        <ErrorState
-          title="Couldn't load the reporting periods"
-          description="The service did not answer. Nothing has been lost — trying again re-runs the request."
-          onRetry={() => void periods.refetch()}
-        />
-      </>
-    );
-  }
-
-  if (!periods.data.hasData || !requested) {
-    return (
-      <>
-        {header()}
-        <EmptyState
-          icon={Inbox}
-          title="No data has been ingested yet"
-          description="Upload the timesheet, the salary overview and the project prices, and this page will show the month's hours, cost, revenue and margin."
-        />
-      </>
-    );
-  }
-
-  const yearEntry = periods.data.years.find(
-    (entry) => entry.year === requested.year,
-  );
-
-  const filter = (
-    <PeriodFilter
-      value={requested}
-      years={periods.data.years.map((entry) => entry.year)}
-      months={yearEntry?.months ?? []}
-      onChange={selectPeriod}
-    />
-  );
-
-  const selectedMonth = yearEntry?.months.find(
-    (month) => month.month === requested.month,
-  );
+  const scope = usePeriodScope();
+  const dashboard = useDashboard(scope.period, scope.enabled);
 
   return (
     <>
-      {header(filter)}
+      <PageHeader
+        title="Dashboard"
+        description="Hours, cost, revenue and margin across the agency."
+        actions={scope.filter}
+      />
 
-      {periods.data.warnings.length > 0 ? (
-        <Notice
-          tone="warning"
-          title={`${periods.data.warnings.length} ${periods.data.warnings.length === 1 ? "gap" : "gaps"} in the loaded data`}
-        >
-          <ul className="flex list-disc flex-col gap-1 pl-4">
-            {periods.data.warnings.map((warning, index) => (
-              <li key={`${warning.code}-${index}`}>{warning.message}</li>
-            ))}
-          </ul>
-        </Notice>
-      ) : null}
-
-      {!covered ? (
-        <EmptyState
-          icon={CalendarClock}
-          title={`Nothing logged in ${periodLabel(requested)}`}
-          description={`The loaded spreadsheets do not cover ${periodLabel(requested)}. Pick a period from the filter above, or upload the rows for this one.`}
-        />
-      ) : dashboard.isPending ? (
-        <DashboardSkeleton />
-      ) : dashboard.isError ? (
-        <ErrorState
-          title="Couldn't load this period"
-          description="The service did not answer for the period you picked. Trying again re-runs the request."
-          onRetry={() => void dashboard.refetch()}
-        />
-      ) : (
-        <DashboardFigures
-          data={dashboard.data}
-          monthIncomplete={
-            selectedMonth ? !selectedMonth.hasSalaries : false
-          }
-        />
+      {scope.gate ?? (
+        dashboard.isPending ? (
+          <DashboardSkeleton />
+        ) : dashboard.isError ? (
+          <QueryError
+            what="this period"
+            onRetry={() => void dashboard.refetch()}
+          />
+        ) : (
+          <DashboardFigures data={dashboard.data} />
+        )
       )}
     </>
   );
 }
 
-function DashboardFigures({
-  data,
-  monthIncomplete,
-}: {
-  data: ReturnType<typeof useDashboard>["data"] & object;
-  monthIncomplete: boolean;
-}) {
+function DashboardFigures({ data }: { data: DashboardResponse }) {
   const { totals, completeness, reconciliation, period, currency } = data;
-  const partial =
-    completeness.cost === "partial" || completeness.revenue === "partial";
 
   return (
     <>
       <VerdictBanner
         periodLabel={period.label}
-        // "this month" only reads correctly for a single month; a whole-year
-        // view has to name the year or the sentence lies about its scope.
+        // "this month" is false for a twelve-month view, so the sentence has to
+        // follow the scope the figures actually describe.
         periodPhrase={period.month === null ? `in ${period.label}` : "this month"}
         profit={totals.profit}
         margin={totals.margin}
@@ -252,29 +99,13 @@ function DashboardFigures({
         />
       </div>
 
-      {partial ? (
-        <Notice
-          tone="danger"
-          title="These figures are a known subtotal, not the whole answer"
-        >
-          <ul className="flex list-disc flex-col gap-1 pl-4">
-            {completeness.issues.map((issue, index) => (
-              <li key={`${issue.code}-${index}`}>{issue.message}</li>
-            ))}
-            {completeness.issues.length === 0 ? (
-              <li>
-                An input behind {period.label} is missing, so profit and margin
-                are withheld rather than reported.
-              </li>
-            ) : null}
-          </ul>
-        </Notice>
-      ) : monthIncomplete ? (
-        <Notice tone="warning" title="This period has no salary data">
-          Hours are recorded for {period.label}, but no salaries, so no cost can
-          be calculated for it.
-        </Notice>
-      ) : null}
+      {/* Scoped to the period on screen. The standing warnings from /periods
+          describe the default year and belong with the data that produced
+          them, on the uploads screen. */}
+      <CompletenessNotice
+        completeness={completeness}
+        periodLabel={period.label}
+      />
 
       <p className="flex flex-wrap gap-x-5 gap-y-1 text-[12.5px] text-ink-3">
         <span>

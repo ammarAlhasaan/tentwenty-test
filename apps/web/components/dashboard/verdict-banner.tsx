@@ -15,6 +15,9 @@ export function VerdictBanner({
   margin,
   revenue,
   cost,
+  subject = "the agency",
+  profitNote = "revenue minus cost",
+  marginNote = "profit as a share of revenue",
 }: {
   periodLabel: string;
   periodPhrase: string;
@@ -22,6 +25,11 @@ export function VerdictBanner({
   margin: number | null;
   revenue: number | null;
   cost: number | null;
+  /** Who the sentence is about. The project view names the project. */
+  subject?: string;
+  /** The project view measures the same two figures against a price. */
+  profitNote?: string;
+  marginNote?: string;
 }) {
   const tone = profit == null ? "unknown" : profit >= 0 ? "profit" : "loss";
 
@@ -29,13 +37,13 @@ export function VerdictBanner({
     tone === "unknown"
       ? `We can't tell yet — the figures behind ${periodPhrase} are incomplete.`
       : tone === "profit"
-        ? `Yes — the agency made money ${periodPhrase}.`
-        : `No — the agency lost money ${periodPhrase}.`;
+        ? `Yes — ${subject} made money ${periodPhrase}.`
+        : `No — ${subject} lost money ${periodPhrase}.`;
 
   const because =
     tone === "unknown"
       ? "Cost or revenue is missing an input, so profit and margin are withheld rather than reported as a subtotal."
-      : `${formatCurrency(revenue)} of work earned against ${formatCurrency(cost)} of fully-loaded cost — salaries, unbillable time and overhead included.`;
+      : `${formatCurrency(revenue)} against ${formatCurrency(cost)} of fully-loaded cost — salaries, unbillable time and overhead included.`;
 
   return (
     <div
@@ -59,12 +67,8 @@ export function VerdictBanner({
       </div>
 
       <dl className="flex flex-wrap gap-x-9 gap-y-5">
-        <Figure label="Profit" value={formatCurrency(profit)} note="revenue minus cost" />
-        <Figure
-          label="Margin"
-          value={formatPercent(margin)}
-          note="profit as a share of revenue"
-        />
+        <Figure label="Profit" value={formatCurrency(profit)} note={profitNote} />
+        <Figure label="Margin" value={formatPercent(margin)} note={marginNote} />
       </dl>
     </div>
   );

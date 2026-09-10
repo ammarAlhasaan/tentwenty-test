@@ -20,6 +20,15 @@ export const analyticsKeys = {
   periods: () => ["analytics", "periods"] as const,
   dashboard: (period: PeriodSelection) =>
     ["analytics", "dashboard", period.year, period.month] as const,
+  projects: (period: PeriodSelection) =>
+    ["analytics", "projects", period.year, period.month] as const,
+  project: (refCode: string) => ["analytics", "project", refCode] as const,
+  departments: (period: PeriodSelection) =>
+    ["analytics", "departments", period.year, period.month] as const,
+  productivity: (period: PeriodSelection) =>
+    ["analytics", "productivity", period.year, period.month] as const,
+  categories: (period: PeriodSelection) =>
+    ["analytics", "categories", period.year, period.month] as const,
 };
 
 /** `month: null` means the whole year — the API's own convention. */
@@ -74,6 +83,168 @@ export type DashboardResponse = {
   };
 };
 
+export type PeriodDescriptor = {
+  year: number;
+  month: number | null;
+  label: string;
+  monthsCovered: number;
+};
+
+export type Completeness = {
+  cost: "complete" | "partial";
+  revenue: "complete" | "partial";
+  issues: { code: string; message: string; context?: unknown }[];
+};
+
+export type ProjectRow = {
+  refCode: string;
+  name: string;
+  client: string | null;
+  category: string | null;
+  status: string | null;
+  priced: boolean;
+  price: number | null;
+  salesMonth: { year: number; month: number; label: string } | null;
+  periodHours: number | null;
+  periodCost: number | null;
+  periodAllocatedRevenue: number | null;
+  periodProfit: number | null;
+  periodMargin: number | null;
+  costComplete: boolean;
+  lifetimeHours: number | null;
+  lifetimeShareOfHours: number | null;
+};
+
+export type ProjectsResponse = {
+  period: PeriodDescriptor;
+  currency: string;
+  projects: ProjectRow[];
+  completeness: Completeness;
+};
+
+export type ProjectDetailResponse = {
+  refCode: string;
+  name: string;
+  client: string | null;
+  category: string | null;
+  status: string | null;
+  currency: string;
+  priced: boolean;
+  price: number | null;
+  salesMonth: { year: number; month: number; label: string } | null;
+  totals: {
+    hours: number | null;
+    cost: number | null;
+    costComplete: boolean;
+    profit: number | null;
+    profitability: number | null;
+  };
+  months: {
+    year: number;
+    month: number;
+    label: string;
+    hours: number | null;
+    cost: number | null;
+    costComplete: boolean;
+    allocatedRevenue: number | null;
+  }[];
+  departments: {
+    department: string;
+    hours: number | null;
+    cost: number | null;
+    costComplete: boolean;
+    shareOfHours: number | null;
+  }[];
+  employees: {
+    employeeNo: string;
+    name: string;
+    department: string | null;
+    designation: string | null;
+    hours: number | null;
+    cost: number | null;
+    costComplete: boolean;
+    revenueShare: number | null;
+    profitability: number | null;
+  }[];
+  completeness: Completeness;
+};
+
+export type DepartmentEmployee = {
+  employeeNo: string;
+  name: string;
+  designation: string | null;
+  totalHours: number | null;
+  billableHours: number | null;
+  productivity: number | null;
+  cost: number | null;
+  costComplete: boolean;
+  allocatedRevenue: number | null;
+  profit: number | null;
+  margin: number | null;
+};
+
+export type DepartmentsResponse = {
+  period: PeriodDescriptor;
+  currency: string;
+  departments: {
+    department: string;
+    totalHours: number | null;
+    billableHours: number | null;
+    nonBillableHours: number | null;
+    productivity: number | null;
+    cost: number | null;
+    costComplete: boolean;
+    allocatedRevenue: number | null;
+    profit: number | null;
+    margin: number | null;
+    employees: DepartmentEmployee[];
+  }[];
+  completeness: Completeness;
+};
+
+export type ProductivityResponse = {
+  period: PeriodDescriptor;
+  companyProductivity: number | null;
+  employees: {
+    employeeNo: string;
+    name: string;
+    department: string | null;
+    designation: string | null;
+    typeOfExpense: string | null;
+    totalHours: number | null;
+    billableHours: number | null;
+    nonBillableHours: number | null;
+    productivity: number | null;
+  }[];
+  completeness: Completeness;
+};
+
+export type CategoriesResponse = {
+  period: PeriodDescriptor;
+  currency: string;
+  totalHours: number | null;
+  billableHours: number | null;
+  internalHours: number | null;
+  totalDirectCost: number | null;
+  billableDirectCost: number | null;
+  internalDirectCost: number | null;
+  categories: {
+    category: string;
+    billable: boolean;
+    hours: number | null;
+    shareOfTotal: number | null;
+    directCost: number | null;
+  }[];
+  completeness: Completeness;
+};
+
+/** `year` is required by every period-scoped endpoint; `month` narrows it. */
+function periodQuery(period: PeriodSelection): string {
+  const query = new URLSearchParams({ year: String(period.year) });
+  if (period.month !== null) query.set("month", String(period.month));
+  return query.toString();
+}
+
 export function fetchPeriods(signal?: AbortSignal): Promise<PeriodsResponse> {
   return apiFetch<PeriodsResponse>("/periods", { signal });
 }
@@ -82,10 +253,9 @@ export function fetchDashboard(
   period: PeriodSelection,
   signal?: AbortSignal,
 ): Promise<DashboardResponse> {
-  const query = new URLSearchParams({ year: String(period.year) });
-  if (period.month !== null) query.set("month", String(period.month));
-
-  return apiFetch<DashboardResponse>(`/dashboard?${query}`, { signal });
+  return apiFetch<DashboardResponse>(`/dashboard?${periodQuery(period)}`, {
+    signal,
+  });
 }
 
 /**
@@ -118,4 +288,72 @@ export function usePeriods(enabled: boolean) {
 
 export function useDashboard(period: PeriodSelection, enabled: boolean) {
   return useQuery(dashboardQueryOptions(period, enabled));
+}
+
+export function useProjects(period: PeriodSelection, enabled: boolean) {
+  return useQuery(
+    queryOptions({
+      queryKey: analyticsKeys.projects(period),
+      queryFn: ({ signal }) =>
+        apiFetch<ProjectsResponse>(`/projects?${periodQuery(period)}`, {
+          signal,
+        }),
+      enabled,
+    }),
+  );
+}
+
+export function useProject(refCode: string, enabled: boolean) {
+  return useQuery(
+    queryOptions({
+      queryKey: analyticsKeys.project(refCode),
+      queryFn: ({ signal }) =>
+        apiFetch<ProjectDetailResponse>(
+          // Not period-filtered: a price only means something against all of the
+          // project's hours. The month-by-month split is inside the response.
+          `/projects/${encodeURIComponent(refCode)}`,
+          { signal },
+        ),
+      enabled,
+    }),
+  );
+}
+
+export function useDepartments(period: PeriodSelection, enabled: boolean) {
+  return useQuery(
+    queryOptions({
+      queryKey: analyticsKeys.departments(period),
+      queryFn: ({ signal }) =>
+        apiFetch<DepartmentsResponse>(`/departments?${periodQuery(period)}`, {
+          signal,
+        }),
+      enabled,
+    }),
+  );
+}
+
+export function useProductivity(period: PeriodSelection, enabled: boolean) {
+  return useQuery(
+    queryOptions({
+      queryKey: analyticsKeys.productivity(period),
+      queryFn: ({ signal }) =>
+        apiFetch<ProductivityResponse>(`/productivity?${periodQuery(period)}`, {
+          signal,
+        }),
+      enabled,
+    }),
+  );
+}
+
+export function useCategories(period: PeriodSelection, enabled: boolean) {
+  return useQuery(
+    queryOptions({
+      queryKey: analyticsKeys.categories(period),
+      queryFn: ({ signal }) =>
+        apiFetch<CategoriesResponse>(`/categories?${periodQuery(period)}`, {
+          signal,
+        }),
+      enabled,
+    }),
+  );
 }
