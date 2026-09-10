@@ -359,3 +359,125 @@ Behaviour changes to confirm, not just compile:
 
 Then: `tsc --noEmit`, `lint`, `build`, and a 375 px pass for horizontal
 overflow.
+
+---
+
+## G. Design-fidelity gaps and approved additions
+
+Added after comparing the implemented Dashboard against the approved prototype
+screen side by side. Two of these are the owner's explicit call; the third is a
+gap the comparison exposed.
+
+### G1. The gaps notice offers no way to act on the gap
+`components/completeness-notice.tsx:31`
+
+The prototype's warning banner carries an **"Open uploads"** button.
+`CompletenessNotice` renders a `Notice` with `tone` and `title` only — no
+`action` — so the app states that a figure is incomplete and gives the reader
+nowhere to go, when `/uploads` is exactly where the gap is fixed.
+
+`Notice` already supports `action` and three other call sites use it
+(`period-scope.tsx:133`, `:167`, `project-detail-view.tsx:43`), so this is a
+prop, not a feature.
+
+**Implement**: pass an `action` with a link to `/uploads`. Confirm the wrapped
+layout still reads correctly at narrow widths — the action wraps below the
+message by design (`components/notice.tsx`).
+
+**Verify**: tick `Tentwenty` as billable on Assumptions, which makes March
+`revenue: partial` with a real issue, and check the notice renders with a
+working action. Untick it afterwards.
+
+### G2. Period chip beside the page title — approved
+`components/page-header.tsx`
+
+The prototype shows the period as a chip next to the screen title
+(`March 2026`), in addition to the year/month selects. The earlier review called
+this redundant; the owner's decision is to keep it, and it *is* in the approved
+design — the chip reads as a label of what the screen is showing, while the
+selects read as a control.
+
+**Implement**: add an optional `badge?: string` to `PageHeader`, rendered as the
+design's `.chip` (12.5px, semibold, `rounded-full`, `bg-brand-soft`,
+`text-brand-strong`, roughly `px-3 py-1`). A string, not a node — the only
+value it will ever carry is the period label.
+
+Feed it from `usePeriodScope`, which already computes the period: return the
+label (via `periodLabel(period)`) and pass `badge={scope.badge}` from the five
+period-scoped screens. `null` when no period resolves, so the first-run screen
+shows no chip.
+
+Do **not** add a new `Chip` component: `pill.tsx`'s `Tag` is a different shape
+(10.5px, uppercase, 7px radius) and conflating them would make both worse.
+
+**Verify**: chip matches the selects on all five screens, including
+`Whole year`, and is absent on the first-run empty state.
+
+### G3. Offer "Load the sample workbooks" from the empty state — approved
+`components/period-scope.tsx:161` (`NoDataYet`)
+
+Today the first-run empty state links to `/uploads`, where the button lives. A
+new user therefore reads "no data has been ingested yet", clicks through to
+another screen, and only then finds the one-click action. Offering it in place
+removes a step from the very first thing anyone does with the app.
+
+**Implement**: `NoDataYet` calls `useLoadSampleData()` from `lib/imports.ts` —
+the same mutation the Uploads screen uses, already session-stamped and already
+invalidating `["analytics"]` on success, so the dashboard fills in without a
+reload (verified when the Uploads button was built).
+
+- Primary: "Load the sample workbooks", disabled while pending.
+- Secondary, kept: "Go to uploads" — the real path for a user with their own
+  spreadsheets.
+- Failure has nowhere to render today: `EmptyState` takes `action` but no
+  children. Return a fragment from `NoDataYet` with a `danger` `Notice` beside
+  the empty state rather than widening `EmptyState`'s API.
+- `EmptyState`'s action wrapper is `<div className="mt-2">`; make it
+  `flex flex-wrap justify-center gap-2` so two buttons sit correctly.
+
+This lands on all five period-scoped screens at once, since they share the gate
+— which is the right outcome: any of them is a valid first screen.
+
+**Verify**: delete the local SQLite file, re-migrate, sign in, press the button
+on the Dashboard, and confirm the figures appear with no reload. Repeat once
+from `/projects` to confirm the shared gate behaves the same.
+
+### G4. Differences deliberately not carried over
+
+Recorded so nobody "fixes" them later:
+
+- **Sidebar user block.** The prototype puts the avatar, name and sign-out in
+  the sidebar footer, and its own stylesheet then hides that footer below 880px
+  (`.side-foot { display: none }`) — leaving no way to sign out on a phone. It
+  lives in the sticky header here instead. Keep.
+- **"Upload data" button in the header.** The prototype carries it *alongside*
+  a Uploads entry in the sidebar. With G3 in place the action is reachable from
+  the empty state, the sidebar and the Uploads screen; a fourth, permanent
+  button would only crowd the period filter.
+- **"▼ negative" in the legend.** The prototype prefixes negatives with ▼; this
+  app lets `Intl` render a minus sign and carries the sign in colour and weight.
+  Keeping the legend line would document a convention the app does not follow.
+- **Revenue hint.** The prototype reads "price of the projects sold this month",
+  which describes *booked* revenue while the figure shown is *allocated*
+  revenue. The current copy describes the number actually on screen. This app is
+  more accurate than the prototype here; do not revert it.
+- **"N people logged time".** Dropped because the API no longer returns a
+  headcount, not by choice. Restoring it would be a backend change for a
+  sub-line.
+
+---
+
+## H. Revised order
+
+G1–G3 join Tier 1, since they are small, independent and user-visible:
+
+**Tier 1 — correctness and design fidelity**
+1. A1 month filter contradiction
+2. A2 staged file survives a rejected upload
+3. A3 group loading shape
+4. G1 action on the gaps notice
+5. G2 period chip
+6. G3 sample-data button in the empty state
+
+Tiers 2–4 are unchanged. Nothing in G contradicts the approved design; G2 and G3
+move toward it.
