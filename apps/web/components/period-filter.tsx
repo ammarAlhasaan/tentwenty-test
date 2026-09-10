@@ -1,5 +1,7 @@
 "use client";
 
+import type { PeriodMonth, PeriodSelection } from "@/lib/analytics";
+
 const MONTHS = [
   "January",
   "February",
@@ -16,59 +18,75 @@ const MONTHS = [
 ] as const;
 
 export function monthLabel(month: number): string {
-  return MONTHS[month - 1] ?? "";
+  return MONTHS[month - 1] ?? String(month);
 }
 
-export function periodLabel(year: number, month: number): string {
-  return `${monthLabel(month)} ${year}`;
+export function periodLabel(period: PeriodSelection): string {
+  return period.month === null
+    ? String(period.year)
+    : `${monthLabel(period.month)} ${period.year}`;
 }
+
+const ALL_MONTHS = "all";
 
 const selectClass =
-  "rounded-[9px] bg-transparent px-2 py-1.5 text-[13.5px] font-semibold text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
+  "rounded-[9px] bg-transparent px-2 py-1.5 text-[13.5px] font-semibold text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50";
 
 /**
- * Native selects: they are the control the platform already gives a keyboard and
- * a phone, and the design uses the same. Controlled by the caller, which owns
- * where the selection is stored.
+ * Native selects: the control the platform already gives a keyboard and a phone,
+ * and what the design uses. The options come from `GET /periods`, so only a
+ * period the API actually holds data for can be chosen — the honest empty state
+ * is then reserved for a period reached by URL.
  */
 export function PeriodFilter({
-  year,
-  month,
+  value,
   years,
+  months,
   onChange,
+  disabled = false,
 }: {
-  year: number;
-  month: number;
-  years: readonly number[];
-  onChange: (period: { year: number; month: number }) => void;
+  value: PeriodSelection;
+  years: number[];
+  months: PeriodMonth[];
+  onChange: (period: PeriodSelection) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex items-center gap-0.5 rounded-[13px] border border-border bg-card p-1 shadow-card">
       <select
         aria-label="Year"
         className={selectClass}
-        value={year}
+        value={value.year}
+        disabled={disabled || years.length === 0}
         onChange={(event) =>
-          onChange({ year: Number(event.target.value), month })
+          onChange({ year: Number(event.target.value), month: value.month })
         }
       >
-        {years.map((value) => (
-          <option key={value} value={value}>
-            {value}
+        {years.map((year) => (
+          <option key={year} value={year}>
+            {year}
           </option>
         ))}
       </select>
       <select
         aria-label="Month"
         className={selectClass}
-        value={month}
+        value={value.month === null ? ALL_MONTHS : value.month}
+        disabled={disabled}
         onChange={(event) =>
-          onChange({ year, month: Number(event.target.value) })
+          onChange({
+            year: value.year,
+            month:
+              event.target.value === ALL_MONTHS
+                ? null
+                : Number(event.target.value),
+          })
         }
       >
-        {MONTHS.map((label, index) => (
-          <option key={label} value={index + 1}>
-            {label}
+        <option value={ALL_MONTHS}>Whole year</option>
+        {months.map((month) => (
+          <option key={month.month} value={month.month}>
+            {monthLabel(month.month)}
           </option>
         ))}
       </select>

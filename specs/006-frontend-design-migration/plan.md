@@ -52,19 +52,34 @@ contrast rather than replaced with new names, so `StatCard`'s existing `tone` AP
 | `window.MD.compute` | **dropped** — `apps/api` owns calculation |
 | `useState` auth, route switch, upload simulation, toasts | **dropped** |
 
-### Data honesty
+### Data: sample first, then the real endpoints
 
-No assessment endpoint exists on `main`, so none is called. The Dashboard renders from
-`lib/sample-dashboard.ts`: a frozen, hand-written literal shaped like the *documented* 004
-`GET /dashboard` response (ratios 0–1, `null` for unknown, `completeness` block). It performs no
-arithmetic — every derived figure is a literal, exactly as FE-01's placeholder page was. A
-`Notice` above the banner says so on every render, and the period filter offers only the one period
-the sample covers, with the design's empty state for any other.
+Built in two stages, because the backend landed mid-implementation.
 
-When 004 lands, the swap is: add `lib/analytics.ts` (types, `apiFetch` calls, query keys,
-`enabled` gating, `signal` forwarding per README §10), point `DashboardView` at
-`useQuery(dashboardQueryOptions(period))`, and delete `lib/sample-dashboard.ts`. The component tree,
-including every loading/empty/error/partial branch, is already shaped for it.
+**Stage 1** — with no reporting endpoint on `main`, the Dashboard rendered from
+`lib/sample-dashboard.ts`: a frozen literal shaped like the documented `GET /dashboard` response,
+performing no arithmetic, never reaching `apiFetch`, and labelled as sample on every render.
+
+**Stage 2** — `004-assessment-backend` merged to `main` (PR #4). The branch was rebased onto it and
+`lib/analytics.ts` was written per README §10: duplicated response types, `fetchPeriods` and
+`fetchDashboard` calling `apiFetch` with `{ signal }` forwarded, `["analytics", …]` query keys
+(outside the `"auth"` namespace, so `isPrivateQuery` clears them on a session change), and
+`enabled` set from the resolved authenticated state. `lib/sample-dashboard.ts` was **deleted**.
+
+Because the component tree was shaped around the documented response from the start, the swap
+touched two files and no layout.
+
+Two integration details worth recording:
+
+- **The period filter is driven by `GET /periods`.** Only years and months the API actually holds
+  are offered, so the empty state is reserved for a period reached by URL — and the `/dashboard`
+  query's `enabled` gate means no request is made for one.
+- **`month` is optional in the contract**, meaning the whole year. The filter exposes that as
+  "Whole year", and the banner's sentence changes with it — "made money this month" is false for a
+  twelve-month view.
+
+Still unintegrated: `/projects`, `/departments`, `/productivity`, `/categories`, `/settings`,
+`/imports`. Each is its own screen. Their pages keep the design's empty state and issue no request.
 
 ### Period state
 
@@ -85,7 +100,7 @@ sanitiser — README 6.5 rules that out explicitly.
 | III. Comments explain the non-obvious | Pass — comments record why sample data is isolated, why sign-out stays in the header, why percent has two formatters. |
 | IV. HTTP-only boundary | Pass — no import crosses `apps/`. Sample types are hand-written in `apps/web`. |
 | V. One side per spec | Pass — `apps/web` only. |
-| VI. One spec per side at a time | Pass — 005 is merged to `main` and complete; this runs in its own worktree/branch. It does **not** consume 004's unlanded contract; that integration is recorded as deferred above and in the spec's Out of Scope. |
+| VI. One spec per side at a time | Pass — 005 is merged to `main` and complete; this runs in its own worktree/branch. The clause forbidding dependence on an *unlanded* backend contract was honoured while 004 was unlanded (stage 1) and stopped applying when 004 merged to `main`; the branch was rebased onto it before any endpoint was called. |
 | VII. Libraries that remove complexity | Pass — no dependency added. |
 | VIII. Verified results only | Enforced by the verification tasks; results recorded in `quickstart.md`. |
 

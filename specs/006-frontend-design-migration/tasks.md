@@ -51,6 +51,7 @@ after that check has actually been run.
 - [x] **T017** Add `apps/web/lib/sample-dashboard.ts`: one frozen literal shaped like 004's
   documented `GET /dashboard` response, plus the one covered period. Every derived figure a
   literal; no arithmetic. Header comment states why it exists and how it is removed.
+  *(Superseded by T029–T031 once 004 landed; the file is deleted.)*
 - [x] **T018** Add `components/dashboard/verdict-banner.tsx` — the purple profit/loss banner with
   `profit` / `loss` / `unknown` tones.
 - [x] **T019** Add `components/period-filter.tsx` — year/month selects writing `?year=&month=` via
@@ -81,3 +82,22 @@ after that check has actually been run.
   confirming no assessment endpoint is requested. Two states could not be reached from an
   automation tab that never becomes visible — recorded in `quickstart.md` under "Not verified".
 - [x] **T028** Record every command's real output in `quickstart.md`.
+
+## Phase 7 — Real integration (added mid-implementation)
+
+`004-assessment-backend` merged to `main` as PR #4 (`5e4fd9a`) while Phase 6 was running, so the
+deferred integration became possible and was taken.
+
+- [x] **T029** Rebase the branch onto the new `main`. Reset the local SQLite file and run
+  `prisma migrate deploy` — 004 moved the API to Prisma, and the pre-Prisma dev database fails
+  baselining (`P3005`).
+- [x] **T030** Add `apps/web/lib/analytics.ts` per README section 10: duplicated `PeriodsResponse`
+  and `DashboardResponse` types, `fetchPeriods` / `fetchDashboard` through `apiFetch` with `signal`
+  forwarded, `["analytics", …]` keys, and `enabled` from the resolved authenticated state.
+- [x] **T031** Point `PeriodFilter` at `GET /periods` (real years and months, plus the contract's
+  optional `month` as "Whole year") and `DashboardView` at `GET /dashboard`. Handle pending, error,
+  no-data-ingested, period-not-covered and partial-completeness. Delete `lib/sample-dashboard.ts`.
+- [x] **T032** Make the banner's sentence follow the period's scope — "this month" is false for a
+  whole-year view.
+- [x] **T033** Re-run `tsc --noEmit`, `lint` and `build`; re-verify in the browser against the API
+  with the supplied workbooks loaded, and against an empty database.

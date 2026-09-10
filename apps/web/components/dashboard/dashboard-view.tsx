@@ -1,194 +1,306 @@
 "use client";
 
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, Inbox } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { EmptyState } from "@/components/empty-state";
+import { ErrorState } from "@/components/error-state";
 import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
 import { PeriodFilter, periodLabel } from "@/components/period-filter";
 import { StatCard } from "@/components/stat-card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VerdictBanner } from "@/components/dashboard/verdict-banner";
+import { useMe } from "@/lib/auth";
+import {
+  useDashboard,
+  usePeriods,
+  type PeriodSelection,
+  type PeriodsResponse,
+} from "@/lib/analytics";
 import {
   formatCurrency,
   formatNumber,
   formatPercent,
   formatShare,
 } from "@/lib/format";
-import {
-  SAMPLE_DASHBOARD,
-  SAMPLE_PERIOD,
-  SAMPLE_YEARS,
-} from "@/lib/sample-dashboard";
 
 /**
  * The selected period lives in the URL: it is navigational state the browser
  * already owns, and a store holding it would duplicate the address bar for one
- * consumer. Note that `safeReturnTo` allowlists pathnames only, so a session
- * expiry returns to `/` without the period — documented in lib/session.ts.
+ * consumer. `safeReturnTo` allowlists pathnames only, so a session expiry returns
+ * to the default period — documented in lib/session.ts.
  */
-function useSelectedPeriod() {
+function useRequestedPeriod(fallbackYear: number | null): PeriodSelection | null {
   const params = useSearchParams();
-  const year = Number(params.get("year"));
-  const month = Number(params.get("month"));
+  const rawYear = params.get("year");
+  const rawMonth = params.get("month");
+
+  const year = Number(rawYear);
+  const month = Number(rawMonth);
+
+  const resolvedYear =
+    rawYear !== null && Number.isInteger(year) && year > 0 ? year : fallbackYear;
+
+  if (resolvedYear === null) return null;
 
   return {
-    year: Number.isInteger(year) && year > 0 ? year : SAMPLE_PERIOD.year,
+    year: resolvedYear,
     month:
-      Number.isInteger(month) && month >= 1 && month <= 12
+      rawMonth !== null && Number.isInteger(month) && month >= 1 && month <= 12
         ? month
-        : SAMPLE_PERIOD.month,
+        : null,
   };
+}
+
+function isCovered(periods: PeriodsResponse, period: PeriodSelection): boolean {
+  const year = periods.years.find((entry) => entry.year === period.year);
+  if (!year) return false;
+  if (period.month === null) return true;
+  return year.months.some((month) => month.month === period.month);
 }
 
 export function DashboardView() {
   const router = useRouter();
   const pathname = usePathname();
-  const selected = useSelectedPeriod();
 
-  const years = SAMPLE_YEARS.includes(
-    selected.year as (typeof SAMPLE_YEARS)[number],
-  )
-    ? SAMPLE_YEARS
-    : ([selected.year, ...SAMPLE_YEARS] as const);
+  // Nothing private starts until the session has resolved to a user
+  // (apps/web/README.md, 4.9).
+  const { data: user } = useMe();
+  const signedIn = Boolean(user);
 
-  function selectPeriod(period: { year: number; month: number }) {
-    router.replace(
-      `${pathname}?year=${period.year}&month=${period.month}`,
-      { scroll: false },
+  const periods = usePeriods(signedIn);
+  const requested = useRequestedPeriod(periods.data?.defaultYear ?? null);
+
+  const covered =
+    periods.data && requested ? isCovered(periods.data, requested) : false;
+
+  const dashboard = useDashboard(
+    requested ?? { year: 0, month: null },
+    signedIn && covered,
+  );
+
+  function selectPeriod(period: PeriodSelection) {
+    const query = new URLSearchParams({ year: String(period.year) });
+    if (period.month !== null) query.set("month", String(period.month));
+    router.replace(`${pathname}?${query}`, { scroll: false });
+  }
+
+  const header = (actions?: React.ReactNode) => (
+    <PageHeader
+      title="Dashboard"
+      description="Hours, cost, revenue and margin across the agency."
+      actions={actions}
+    />
+  );
+
+  if (periods.isPending) {
+    return (
+      <>
+        {header()}
+        <DashboardSkeleton />
+      </>
     );
   }
 
-  const covered =
-    selected.year === SAMPLE_PERIOD.year &&
-    selected.month === SAMPLE_PERIOD.month;
+  if (periods.isError) {
+    return (
+      <>
+        {header()}
+        <ErrorState
+          title="Couldn't load the reporting periods"
+          description="The service did not answer. Nothing has been lost — trying again re-runs the request."
+          onRetry={() => void periods.refetch()}
+        />
+      </>
+    );
+  }
 
-  const { totals, completeness, warnings, overhead, peopleWhoLoggedTime } =
-    SAMPLE_DASHBOARD;
+  if (!periods.data.hasData || !requested) {
+    return (
+      <>
+        {header()}
+        <EmptyState
+          icon={Inbox}
+          title="No data has been ingested yet"
+          description="Upload the timesheet, the salary overview and the project prices, and this page will show the month's hours, cost, revenue and margin."
+        />
+      </>
+    );
+  }
+
+  const yearEntry = periods.data.years.find(
+    (entry) => entry.year === requested.year,
+  );
+
+  const filter = (
+    <PeriodFilter
+      value={requested}
+      years={periods.data.years.map((entry) => entry.year)}
+      months={yearEntry?.months ?? []}
+      onChange={selectPeriod}
+    />
+  );
+
+  const selectedMonth = yearEntry?.months.find(
+    (month) => month.month === requested.month,
+  );
 
   return (
     <>
-      <PageHeader
-        title="Dashboard"
-        description="Hours, cost, revenue and margin across the agency."
-        actions={
-          <PeriodFilter
-            year={selected.year}
-            month={selected.month}
-            years={years}
-            onChange={selectPeriod}
-          />
-        }
-      />
+      {header(filter)}
 
-      <Notice tone="warning" title="Sample data — this is not a live figure">
-        The reporting endpoints are not available on this build, so nothing here
-        has been read from an ingested spreadsheet. Every figure below is a fixed
-        example used to show the layout.
-      </Notice>
+      {periods.data.warnings.length > 0 ? (
+        <Notice
+          tone="warning"
+          title={`${periods.data.warnings.length} ${periods.data.warnings.length === 1 ? "gap" : "gaps"} in the loaded data`}
+        >
+          <ul className="flex list-disc flex-col gap-1 pl-4">
+            {periods.data.warnings.map((warning, index) => (
+              <li key={`${warning.code}-${index}`}>{warning.message}</li>
+            ))}
+          </ul>
+        </Notice>
+      ) : null}
 
       {!covered ? (
         <EmptyState
           icon={CalendarClock}
-          title={`Nothing logged in ${periodLabel(selected.year, selected.month)}`}
-          description={`The example covers ${SAMPLE_DASHBOARD.period.label} only. Once the timesheet, salary and price spreadsheets are ingested, every month they cover will be selectable here.`}
-          action={
-            <Button variant="outline" onClick={() => selectPeriod(SAMPLE_PERIOD)}>
-              Go to {SAMPLE_DASHBOARD.period.label}
-            </Button>
-          }
+          title={`Nothing logged in ${periodLabel(requested)}`}
+          description={`The loaded spreadsheets do not cover ${periodLabel(requested)}. Pick a period from the filter above, or upload the rows for this one.`}
+        />
+      ) : dashboard.isPending ? (
+        <DashboardSkeleton />
+      ) : dashboard.isError ? (
+        <ErrorState
+          title="Couldn't load this period"
+          description="The service did not answer for the period you picked. Trying again re-runs the request."
+          onRetry={() => void dashboard.refetch()}
         />
       ) : (
-        <>
-          <VerdictBanner
-            periodLabel={SAMPLE_DASHBOARD.period.label}
-            profit={totals.profit}
-            margin={totals.margin}
-            revenue={totals.allocatedRevenue}
-            cost={totals.cost}
-          />
-
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(14.25rem,1fr))] gap-4">
-            <StatCard
-              label="Total hours"
-              value={formatNumber(totals.totalHours)}
-              hint={`${peopleWhoLoggedTime} people logged time`}
-            />
-            <StatCard
-              label="Billable hours"
-              value={formatNumber(totals.billableHours)}
-              share={totals.productivity}
-              hint={`${formatShare(totals.productivity)} of logged time`}
-            />
-            <StatCard
-              label="Cost"
-              value={formatCurrency(totals.cost)}
-              hint={`salaries and ${formatCurrency(overhead)} overhead`}
-            />
-            <StatCard
-              label="Revenue"
-              value={formatCurrency(totals.allocatedRevenue)}
-              hint={`earned by this month's hours · ${formatCurrency(totals.bookedRevenue)} sold`}
-            />
-            <StatCard
-              label="Margin"
-              value={formatPercent(totals.margin)}
-              tone={
-                totals.margin == null
-                  ? "neutral"
-                  : totals.margin >= 0
-                    ? "positive"
-                    : "negative"
-              }
-              hint={`profit ${formatCurrency(totals.profit)}`}
-            />
-          </div>
-
-          {completeness.cost === "partial" ||
-          completeness.revenue === "partial" ? (
-            <Notice
-              tone="danger"
-              title="Some figures above are a known subtotal, not the whole answer"
-            >
-              <ul className="flex list-disc flex-col gap-1 pl-4">
-                {completeness.issues.map((issue) => (
-                  <li key={issue.code}>{issue.message}</li>
-                ))}
-              </ul>
-            </Notice>
-          ) : null}
-
-          {warnings.length > 0 ? (
-            <Notice
-              tone="warning"
-              title={`${warnings.length} gaps elsewhere in the data`}
-            >
-              <p className="mb-1">
-                These do not change the figures above — {SAMPLE_DASHBOARD.period.label} ties.
-                They are places the dataset is incomplete.
-              </p>
-              <ul className="flex list-disc flex-col gap-1 pl-4">
-                {warnings.map((warning) => (
-                  <li key={warning.code}>{warning.message}</li>
-                ))}
-              </ul>
-            </Notice>
-          ) : null}
-
-          <p className="flex flex-wrap gap-x-5 gap-y-1 text-[12.5px] text-ink-3">
-            <span>
-              <span className="font-mono text-ink-2">—</span> missing from the
-              source data
-            </span>
-            <span>
-              <span className="font-mono text-ink-2">0</span> a genuine zero
-            </span>
-            <span>All money in {SAMPLE_DASHBOARD.currency}</span>
-          </p>
-        </>
+        <DashboardFigures
+          data={dashboard.data}
+          monthIncomplete={
+            selectedMonth ? !selectedMonth.hasSalaries : false
+          }
+        />
       )}
     </>
+  );
+}
+
+function DashboardFigures({
+  data,
+  monthIncomplete,
+}: {
+  data: ReturnType<typeof useDashboard>["data"] & object;
+  monthIncomplete: boolean;
+}) {
+  const { totals, completeness, reconciliation, period, currency } = data;
+  const partial =
+    completeness.cost === "partial" || completeness.revenue === "partial";
+
+  return (
+    <>
+      <VerdictBanner
+        periodLabel={period.label}
+        // "this month" only reads correctly for a single month; a whole-year
+        // view has to name the year or the sentence lies about its scope.
+        periodPhrase={period.month === null ? `in ${period.label}` : "this month"}
+        profit={totals.profit}
+        margin={totals.margin}
+        revenue={totals.allocatedRevenue}
+        cost={totals.cost}
+      />
+
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(14.25rem,1fr))] gap-4">
+        <StatCard
+          label="Total hours"
+          value={formatNumber(totals.totalHours)}
+          hint={`${formatNumber(totals.nonBillableHours)} of them not billable`}
+        />
+        <StatCard
+          label="Billable hours"
+          value={formatNumber(totals.billableHours)}
+          share={totals.productivity}
+          hint={`${formatShare(totals.productivity)} of logged time`}
+        />
+        <StatCard
+          label="Cost"
+          value={formatCurrency(totals.cost)}
+          hint={
+            reconciliation.overhead > 0
+              ? `salaries and ${formatCurrency(reconciliation.overhead)} overhead`
+              : "salaries, unbillable time and overhead"
+          }
+        />
+        <StatCard
+          label="Revenue"
+          value={formatCurrency(totals.allocatedRevenue)}
+          hint={`earned by this period's hours · ${formatCurrency(totals.bookedRevenue)} sold`}
+        />
+        <StatCard
+          label="Margin"
+          value={formatPercent(totals.margin)}
+          tone={
+            totals.margin == null
+              ? "neutral"
+              : totals.margin >= 0
+                ? "positive"
+                : "negative"
+          }
+          hint={`profit ${formatCurrency(totals.profit)}`}
+        />
+      </div>
+
+      {partial ? (
+        <Notice
+          tone="danger"
+          title="These figures are a known subtotal, not the whole answer"
+        >
+          <ul className="flex list-disc flex-col gap-1 pl-4">
+            {completeness.issues.map((issue, index) => (
+              <li key={`${issue.code}-${index}`}>{issue.message}</li>
+            ))}
+            {completeness.issues.length === 0 ? (
+              <li>
+                An input behind {period.label} is missing, so profit and margin
+                are withheld rather than reported.
+              </li>
+            ) : null}
+          </ul>
+        </Notice>
+      ) : monthIncomplete ? (
+        <Notice tone="warning" title="This period has no salary data">
+          Hours are recorded for {period.label}, but no salaries, so no cost can
+          be calculated for it.
+        </Notice>
+      ) : null}
+
+      <p className="flex flex-wrap gap-x-5 gap-y-1 text-[12.5px] text-ink-3">
+        <span>
+          <span className="font-mono text-ink-2">—</span> missing from the source
+          data
+        </span>
+        <span>
+          <span className="font-mono text-ink-2">0</span> a genuine zero
+        </span>
+        <span>All money in {currency}</span>
+      </p>
+    </>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="flex flex-col gap-6" aria-busy role="status">
+      <span className="sr-only">Loading the figures</span>
+      <Skeleton className="h-52 rounded-2xl" />
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(14.25rem,1fr))] gap-4">
+        {Array.from({ length: 5 }, (_, i) => (
+          <Skeleton key={i} className="h-32 rounded-xl" />
+        ))}
+      </div>
+    </div>
   );
 }
 

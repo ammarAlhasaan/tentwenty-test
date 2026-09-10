@@ -17,11 +17,16 @@ engine, `useState` fake authentication, a route-state switch, simulated uploads 
 delays. **None of that is production behaviour.** Only its visual and interaction language —
 typography, colour, spacing, hierarchy, card and banner shapes, state copy — is adopted.
 
-`apps/api` on `main` serves `GET /health` and `/auth/*` only. The assessment endpoints
-(`/dashboard`, `/periods`, `/projects`, `/departments`, `/productivity`, `/categories`,
-`/settings`, `/imports`) live on the unlanded branch `004-assessment-backend`. Constitution VI
-forbids this spec from depending on that contract, so **every figure-bearing screen stays
-unintegrated and says so**, and integration is deferred to a later frontend spec.
+**Backend availability changed mid-implementation.** When this spec was written, `apps/api` on
+`main` served `GET /health` and `/auth/*` only, and the Dashboard was built against an isolated,
+clearly-labelled sample module with integration deferred (Constitution VI). During implementation
+`004-assessment-backend` was merged to `main` (PR #4, `5e4fd9a`), landing `/periods`, `/dashboard`,
+`/projects`, `/departments`, `/productivity`, `/categories`, `/settings` and `/imports`.
+
+The branch was rebased onto that `main` and **the Dashboard was integrated against the real
+endpoints**: `lib/analytics.ts` replaced the sample module, which was deleted. The remaining
+screens are still unintegrated — each is its own screen's worth of work and belongs to a later
+frontend spec.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -63,12 +68,12 @@ five metrics — total hours, billable hours, cost, revenue, margin — and the 
 
 **Acceptance Scenarios**:
 
-1. **Given** the Dashboard, **When** it renders figures, **Then** a persistent, prominent notice
-   states that the figures are sample data and that no spreadsheet has been ingested.
+1. **Given** ingested spreadsheets, **When** the Dashboard renders, **Then** every figure comes
+   from `GET /dashboard` for the selected period; nothing is calculated in the browser.
 2. **Given** a profit, **When** the banner renders, **Then** it is purple; **Given** a loss, it is
    red; **Given** an unknown result, it is ink-dark and says the answer is unknown.
-3. **Given** the period filter, **When** the user selects a period the sample does not cover,
-   **Then** an empty state explains which period is covered and offers a control to return to it.
+3. **Given** the period filter, **When** a period outside the loaded data is reached by URL,
+   **Then** an empty state says so and **no** `/dashboard` request is made for it.
 4. **Given** a metric whose value is absent, **When** it renders, **Then** it shows an em dash with
    an accessible "missing" label, never a zero.
 5. **Given** the Dashboard, **When** it renders, **Then** it contains no table and no chart.
@@ -132,10 +137,14 @@ must not regress.
 - **FR-005** Percentage-shaped values MUST distinguish a *share* (unsigned, e.g. productivity)
   from a *signed result* (e.g. margin).
 - **FR-006** The selected period MUST live in the URL query string.
-- **FR-007** Sample data MUST be confined to one clearly named module, MUST be labelled as sample
-  wherever it is shown, and MUST NOT be reachable through `apiFetch`.
+- **FR-007** Any preview data MUST be confined to one clearly named module, MUST be labelled as
+  sample wherever it is shown, and MUST NOT be reachable through `apiFetch`. *(Satisfied while it
+  existed; the module was deleted once the endpoints landed, so no preview data remains.)*
 - **FR-008** No screen may present a figure as an API integration while the backend contract it
-  needs is unlanded.
+  needs is unlanded. The Projects, Productivity and Categories screens therefore stay on their
+  empty states and issue no request.
+- **FR-009** Dashboard queries MUST follow `apps/web/README.md` section 10: keys outside the
+  `"auth"` namespace, `signal` forwarded, and `enabled` set from the resolved authenticated state.
 
 ### Non-functional / constraints
 
@@ -152,9 +161,10 @@ must not regress.
 
 ## Out of Scope
 
-- Integrating `/dashboard`, `/periods`, `/projects`, `/departments`, `/productivity`,
-  `/categories`, `/settings` or `/imports` — deferred to a later frontend spec, blocked on
-  `004-assessment-backend` landing on `main`.
+- Integrating `/projects`, `/departments`, `/productivity`, `/categories`, `/settings` and
+  `/imports`. These are now available, but each is a screen's worth of work with its own tables,
+  drill-downs and forms; they belong to a later frontend spec. `/periods` and `/dashboard` **are**
+  integrated.
 - The prototype's Departments, Uploads, Assumptions and Project-detail screens. Each exists only
   to display backend data that has no landed contract; adding the routes now would create
   navigation that leads nowhere.

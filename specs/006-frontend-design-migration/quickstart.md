@@ -7,6 +7,7 @@ cd ~/Documents/claude-worktree/tentwenty-test/frontend-design-migration
 pnpm install
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env.local
+pnpm --filter api exec prisma migrate deploy
 pnpm --filter api dev     # :4000, seeds demo@tentwenty.local on first start
 pnpm --filter web dev     # :3000
 ```
@@ -16,6 +17,18 @@ If port 3000 is taken, Next picks the next free port and `FRONTEND_ORIGIN` in
 `OriginCheckGuard` doing its job). That is what happened during this verification
 run: the web app ran on **:3001** and `FRONTEND_ORIGIN` was set to
 `http://localhost:3001`.
+
+Load the supplied workbooks once the API is up and you are signed in:
+
+```bash
+curl -c /tmp/c.txt -X POST http://localhost:4000/auth/login -H 'Content-Type: application/json' \
+  -H 'Origin: http://localhost:3000' \
+  -d '{"email":"demo@tentwenty.local","password":"demo-password-2026"}'
+curl -b /tmp/c.txt -X POST http://localhost:4000/imports/sample -H 'Origin: http://localhost:3000'
+```
+
+If a pre-Prisma `apps/api/data/margin.sqlite` exists, `prisma migrate deploy` fails with `P3005`.
+Delete the file and re-run it; the demo user is re-seeded on the next start.
 
 ## Commands actually run — 2026-09-10
 
@@ -35,12 +48,11 @@ application on `:3001`. Both rendered at **1440x900** and at **375x812**.
 | Sign-in, 1440 — layout against the prototype | Matches: split panel, brand mark, field sizing, indigo panel. The prototype's demo-credentials hint is deliberately absent. |
 | Sign-in with a wrong password | `POST /auth/login` → 401; inline danger notice "Invalid email or password."; **no navigation**. |
 | Sign-in with the demo credentials | `POST /auth/login` → 200; navigated to `/`. |
-| Dashboard, 1440 — against the prototype | Matches: sidebar proportions, purple banner, 4+1 KPI wrap, mono figures, sample notice, warning banner, legend row. |
+| Dashboard, 1440 — against the prototype | Matches: sidebar proportions, purple banner, 4+1 KPI wrap, mono figures, legend row. |
 | Five metrics present | Total hours, Billable hours (with share bar), Cost, Revenue, Margin. |
 | No table, no chart on the Dashboard | Confirmed — the FE-01 placeholder Projects table is gone. |
-| Period filter → `?year=2025&month=7` | Empty state "Nothing logged in July 2025" with a "Go to March 2026" action. |
-| "Go to March 2026" | URL became `?year=2026&month=3`; the figures returned. |
-| **Network panel** | Only `/auth/me`, `/auth/login`, `/auth/logout` and their preflights. **No request to any assessment endpoint.** |
+| Period filter → `?year=2026&month=7` (not loaded) | Empty state "Nothing logged in July 2026", and **no `/dashboard` request was made** — the `enabled` gate held. |
+| **Network panel** | `/auth/*`, `GET /periods` and `GET /dashboard?year=&month=` — nothing else. Paired `ERR_ABORTED` entries show the `signal` genuinely aborting superseded requests. |
 | Section navigation | `/projects`, `/productivity`, `/categories` each render the design's empty state; `aria-current` highlight follows. |
 | 404 | `/nowhere` renders the restyled not-found with a route back. |
 | Mobile 375 | Sidebar collapses to a scrollable section bar; **sign-out stays visible in the header**; `document.scrollWidth === window.innerWidth` — no horizontal overflow. |
@@ -65,3 +77,28 @@ application on `:3001`. Both rendered at **1440x900** and at **375x812**.
 - **The `AuthGate` "Can't reach the service" card**, for the same reason.
 - **Dark mode**, beyond adding tokens: the app has no theme switch, so the block
   was written but not exercised.
+
+## Integration verification — after 004 landed
+
+API running with the three supplied workbooks loaded via `POST /imports/sample`
+(11 project rows, 144 salary rows, 562 timesheet rows accepted).
+
+| Check | Result |
+| --- | --- |
+| Whole year 2025 | `GET /dashboard?year=2025` → 19,815.2 h · 15,265.6 billable · 77.0% · AED 2,400,000 cost · AED 5,012,000 revenue · AED 2,612,000 profit · +52.1% margin. Rendered figures match the response field for field. |
+| March 2025 | `GET /dashboard?year=2025&month=3` → 1,642.9 h · 1,230.7 billable · 74.9% · AED 197,000 · AED 311,012 earned (AED 330,000 sold) · AED 114,012 profit · +36.7% margin. Matches the response and the published contract. |
+| Nothing calculated in the browser | Every figure is a response field passed through a formatter. `productivity` and `margin` arrive as ratios and go straight to `formatShare` / `formatPercent`. |
+| Period filter options | Years and months come from `GET /periods`; only 2025 and its twelve months are offered, plus "Whole year". |
+| Banner scope wording | "made money this month" for March; "made money in 2025" for the whole-year view. |
+| Empty database | Database deleted and re-migrated: the Dashboard shows "No data has been ingested yet" and the period filter is not rendered. |
+| Signed-out gating | With the session unresolved, neither `/periods` nor `/dashboard` is requested. |
+| Mobile 375, live data | No horizontal overflow; sign-out present; banner and cards stack. |
+| `tsc --noEmit`, `lint`, `build` | Re-run after the integration — all three clean. |
+
+### Still not verified
+
+- **The partial-completeness banner.** The supplied workbooks are complete
+  (`completeness.cost` and `.revenue` both `complete`, zero issues), so the
+  `partial` branch was never rendered. Reaching it needs a dataset with a missing
+  salary or an unpriced ref code. The branch is written against the documented
+  `completeness.issues[]` shape and compiles; it has not been seen on screen.

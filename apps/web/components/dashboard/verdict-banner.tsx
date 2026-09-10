@@ -9,12 +9,15 @@ import { cn } from "cn";
  */
 export function VerdictBanner({
   periodLabel,
+  /** How the period reads in a sentence: "this month", "this year", "in 2025". */
+  periodPhrase,
   profit,
   margin,
   revenue,
   cost,
 }: {
   periodLabel: string;
+  periodPhrase: string;
   profit: number | null;
   margin: number | null;
   revenue: number | null;
@@ -24,10 +27,10 @@ export function VerdictBanner({
 
   const answer =
     tone === "unknown"
-      ? "We can't tell yet — the figures behind this month are incomplete."
+      ? `We can't tell yet — the figures behind ${periodPhrase} are incomplete.`
       : tone === "profit"
-        ? "Yes — the agency made money this month."
-        : "No — the agency lost money this month.";
+        ? `Yes — the agency made money ${periodPhrase}.`
+        : `No — the agency lost money ${periodPhrase}.`;
 
   const because =
     tone === "unknown"

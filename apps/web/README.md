@@ -304,7 +304,17 @@ for `0`.
 **11.5 [ours] Period selection lives in the URL**, not in a store. `safeReturnTo` allowlists
 pathnames, so an expiry returns to a screen's default period — see the comment in `lib/session.ts`.
 
-**11.6 [ours] Sample data is confined to `lib/sample-dashboard.ts`,** labelled on screen wherever it
-appears, and never reaches `apiFetch`. It exists only because the assessment endpoints are not on
-`main`. It performs no arithmetic: every derived figure is a literal, because `apps/api` owns the
-cost model. Deleting the file is the last step of the real integration.
+**11.6 [ours] No preview data remains.** The Dashboard reads `GET /periods` and `GET /dashboard`
+through `lib/analytics.ts`. The sample module that stood in while those endpoints were unlanded has
+been deleted. If preview data is ever needed again, the rule it followed applies: one clearly named
+module, labelled on screen wherever it appears, never reachable through `apiFetch`, and performing
+no arithmetic — `apps/api` owns the cost model.
+
+**11.7 [ours] A screen with no landed integration renders its empty state and issues no request.**
+Projects, Productivity and Categories are in that position today: their endpoints exist, but the
+screens are a later spec's work, and a page that half-integrates is worse than one that says it has
+nothing yet.
+
+**11.8 [ours] The period filter's options come from the API, not from a constant.** `GET /periods`
+decides which years and months can be chosen, so an out-of-range period is only reachable by URL —
+where the `/dashboard` query's `enabled` gate keeps it from issuing a request at all.
