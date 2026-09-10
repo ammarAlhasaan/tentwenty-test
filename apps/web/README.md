@@ -279,3 +279,83 @@ renders from it; `["auth", "me"]` remains the only thing the UI reads.
 4. Private mutations stamp the session in `onMutate` and check it before session-sensitive callbacks.
 5. Handle `400` and `429` where the request is made. Do **not** handle `401` — the central policy does.
 6. Change `providers.tsx` only when the *policy* changes, and amend this file when it does.
+
+## 11. Presentation conventions
+
+**Added by** spec `006-frontend-design-migration` (FE-03).
+
+**11.1 [ours] Design values are tokens, not literals.** The approved design's palette, type scale,
+radii and shadows live in `app/globals.css` and reach components as Tailwind utilities. A hex value
+in a component is a defect.
+
+**11.2 [ours] Colours that failed WCAG AA as text were darkened, not copied.** The design's
+`--ink-3` (#9b9cb8, 2.51:1), `--neg` (#e14b3c, 3.73:1) and `--warn` (#b8730a, 3.58:1) are used
+there for small text. `globals.css` carries darker equivalents with the measured ratio beside each.
+
+**11.3 [ours] Two percent formatters, deliberately.** `formatPercent` is signed and is for a
+*result* — margin, profitability. `formatShare` is unsigned and is for a *portion* — productivity,
+share of hours. Both take a **ratio (0–1)**, matching the API's number contract. The design
+prototype used percentage points; that is not this codebase's unit.
+
+**11.4 [ours] An absent value is never a zero.** `MissingValue` renders the em dash with an
+accessible label. Every formatter returns `ABSENT` for `null`/`undefined` and a formatted zero
+for `0`.
+
+**11.5 [ours] Period selection lives in the URL**, not in a store. `safeReturnTo` allowlists
+pathnames, so an expiry returns to a screen's default period — see the comment in `lib/session.ts`.
+
+**11.6 [ours] No preview data remains.** Every screen reads a real endpoint, through
+`lib/analytics.ts`, `lib/settings.ts` or `lib/imports.ts`. The sample module that stood in while
+those endpoints were unlanded has been deleted. If preview data is ever needed again, the rule it followed applies: one clearly named
+module, labelled on screen wherever it appears, never reachable through `apiFetch`, and performing
+no arithmetic — `apps/api` owns the cost model.
+
+**11.7 [ours] Every screen reads its own endpoint.** No screen renders a permanent empty state. An
+empty state means the API answered and had nothing for that period — which is a fact about the
+data, not about the frontend.
+
+**11.8 [ours] The period filter's options come from the API, not from a constant.** `GET /periods`
+decides which years and months can be chosen, so an out-of-range period is only reachable by URL —
+where the `/dashboard` query's `enabled` gate keeps it from issuing a request at all.
+
+**11.9 [ours] A data-quality warning is shown in the scope it describes.** `GET /periods` reports
+standing issues for the *default year*; those belong on the uploads screen, beside the files that
+produced them. A period-scoped screen shows that period's own `completeness.issues` and nothing
+else, because a warning about March is misleading on a page showing July.
+
+**11.10 [ours] Changing the year cannot leave an impossible month selected.** Not every year holds
+every month. Where the selected month is not in the new year, the selection falls back to the whole
+year rather than leaving the filter disagreeing with the figures.
+
+**11.11 [ours] A destructive action is confirmed after the choice, not by it, and the confirmation
+describes that action.** Choosing a workbook stages it; the import runs when the confirm button is
+pressed. The three imports do not behave alike — checked against `ImportsService`, a timesheet or
+salary import deletes every row for the months its file covers, while a project import upserts by
+Ref Code and removes nothing — so each card carries its own sentence and its own label ("Upload and
+replace" against "Upload and update"). A shared sentence would be wrong for one of them. Which
+months are actually replaced is only known once the API has read the file, so it is reported
+afterwards rather than predicted.
+
+**11.12 [ours] A failure message says only what this side can know, and uncertainty is the
+default.** Only a recognised HTTP rejection — an `ApiError` with `kind: "http"` and a status — is
+the API's own answer, and its import contract guarantees nothing is replaced when one fails, so
+"nothing was changed" is true there. *Every* other failure is unconfirmed: `fetch` rejecting
+mid-flight, `response.text()` failing part-way through the body, `JSON.parse` failing on a truncated
+one, or anything unrecognised. Each of those can follow work the server has already done, so the
+message says the result could not be confirmed and offers a way to look. Written as "only a
+rejection is definite" rather than "these known failures are uncertain", so a new failure mode is
+safe by default. This is the same distinction that keeps network failure separate from a 401 in 2.3.
+
+**11.13 [ours] A form never rejects a value the API accepts.** The overhead field takes any
+non-negative amount, because that is what `PUT /settings` validates. A convenient `step` on a
+number input is a validation rule to the browser, not a hint.
+
+**11.14 [ours] Uploads use the existing transport.** `apiFetch` passes a `FormData` body through
+untouched, so the three import endpoints need no second transport and no `Content-Type` of their
+own. Both write paths — importing and saving assumptions — stamp the session in `onMutate`, check
+it before writing to the cache, and then invalidate `["analytics"]`: the API recalculates, the
+frontend does not.
+
+**11.15 [ours] `usePeriodScope` owns the period-scoped screens' shared shape.** Five screens need
+the same loaded periods, the same URL-backed selection, the same filter and the same four states. A
+sixth screen with those needs uses it; one without them does not.

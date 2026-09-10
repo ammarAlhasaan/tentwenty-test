@@ -1,120 +1,149 @@
-"use client"
+import { cn } from "cn";
 
-import * as React from "react"
-import { cn } from "cn"
-
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+/**
+ * The design's table. Every figure column is right-aligned and mono; the first
+ * column is the row's name and stays left. `minWidth` keeps columns readable on
+ * a phone and lets the wrapper scroll rather than the page.
+ */
+function TableScroller({
+  minWidth = 560,
+  className,
+  children,
+}: {
+  minWidth?: number;
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div
-      data-slot="table-container"
-      className="relative w-full overflow-x-auto"
-    >
+    <div className={cn("w-full overflow-x-auto", className)}>
       <table
-        data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
-        {...props}
-      />
+        className="w-full border-collapse text-sm"
+        style={{ minWidth }}
+      >
+        {children}
+      </table>
     </div>
-  )
+  );
 }
 
-function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
-  return (
-    <thead
-      data-slot="table-header"
-      className={cn("[&_tr]:border-b", className)}
-      {...props}
-    />
-  )
+function TableHeader({ children }: { children: React.ReactNode }) {
+  return <thead>{children}</thead>;
 }
 
-function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
-  return (
-    <tbody
-      data-slot="table-body"
-      className={cn("[&_tr:last-child]:border-0", className)}
-      {...props}
-    />
-  )
+function TableBody({ children }: { children: React.ReactNode }) {
+  return <tbody>{children}</tbody>;
 }
 
-function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
-  return (
-    <tfoot
-      data-slot="table-footer"
-      className={cn(
-        "border-t bg-muted/50 font-medium [&>tr]:last:border-b-0",
-        className
-      )}
-      {...props}
-    />
-  )
+function TableFooter({ children }: { children: React.ReactNode }) {
+  return <tfoot>{children}</tfoot>;
 }
 
-function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
+function TableRow({
+  className,
+  ...props
+}: React.ComponentProps<"tr">) {
   return (
     <tr
-      data-slot="table-row"
       className={cn(
-        "border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
-        className
+        "[&>td]:border-b [&>td]:border-line-2 last:[&>td]:border-b-0",
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function TableHead({
+  align = "end",
   className,
-  scope = "col",
   ...props
-}: React.ComponentProps<"th">) {
+}: Omit<React.ComponentProps<"th">, "align"> & { align?: "start" | "end" }) {
   return (
     <th
-      data-slot="table-head"
-      scope={scope}
+      scope="col"
       className={cn(
-        "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
-        className
+        "border-y border-border bg-brand-tint px-5 py-3 text-[11.5px] font-semibold whitespace-nowrap text-ink-3",
+        align === "start" ? "text-left" : "text-right",
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
-function TableCell({ className, ...props }: React.ComponentProps<"td">) {
-  return (
-    <td
-      data-slot="table-cell"
-      className={cn(
-        "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function TableCaption({
+function TableCell({
+  align = "end",
+  numeric = false,
   className,
   ...props
-}: React.ComponentProps<"caption">) {
+}: Omit<React.ComponentProps<"td">, "align"> & {
+  align?: "start" | "end";
+  numeric?: boolean;
+}) {
   return (
-    <caption
-      data-slot="table-caption"
-      className={cn("mt-4 text-sm text-muted-foreground", className)}
+    <td
+      className={cn(
+        "px-5 py-4 align-middle whitespace-nowrap",
+        align === "start" ? "text-left" : "text-right",
+        numeric && "font-mono tabular-nums",
+        className,
+      )}
       {...props}
     />
-  )
+  );
+}
+
+function TableFooterCell({
+  align = "end",
+  numeric = false,
+  className,
+  ...props
+}: Omit<React.ComponentProps<"td">, "align"> & {
+  align?: "start" | "end";
+  numeric?: boolean;
+}) {
+  return (
+    <td
+      className={cn(
+        "border-t border-border bg-brand-tint px-5 py-3.5 font-bold whitespace-nowrap",
+        align === "start" ? "text-left" : "text-right",
+        numeric && "font-mono tabular-nums",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+/** The two-line name cell the design uses: a bold name over a mono reference. */
+function TableName({
+  name,
+  detail,
+  children,
+}: {
+  name: string;
+  detail?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5 whitespace-normal">
+      <span className="font-semibold text-foreground">{name}</span>
+      {detail ? (
+        <span className="font-mono text-[11.5px] text-ink-3">{detail}</span>
+      ) : null}
+      {children}
+    </div>
+  );
 }
 
 export {
-  Table,
+  TableScroller,
   TableHeader,
   TableBody,
   TableFooter,
-  TableHead,
   TableRow,
+  TableHead,
   TableCell,
-  TableCaption,
-}
+  TableFooterCell,
+  TableName,
+};

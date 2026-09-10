@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { CategoriesView } from "@/components/categories/categories-view";
+import { DepartmentsView } from "@/components/departments/departments-view";
 import { TableSkeleton } from "@/components/query-states";
 
-export const metadata: Metadata = { title: "Categories" };
+export const metadata: Metadata = { title: "Departments" };
 
-export default function CategoriesPage() {
+export default function DepartmentsPage() {
   return (
     <Suspense fallback={<TableSkeleton />}>
-      <CategoriesView />
+      <DepartmentsView />
     </Suspense>
   );
 }

@@ -15,13 +15,17 @@ export function ErrorState({
 }) {
   return (
     <Card>
-      <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-        <TriangleAlert className="size-6 text-negative" aria-hidden />
-        <h2 className="font-heading text-base font-semibold">{title}</h2>
-        <p className="max-w-prose text-sm text-muted-foreground">
+      <CardContent className="flex flex-col items-center gap-3 px-6 py-16 text-center">
+        <span className="mb-1 grid size-14 place-items-center rounded-[18px] bg-negative-soft text-negative">
+          <TriangleAlert className="size-6" aria-hidden />
+        </span>
+        <h2 className="font-heading text-xl font-bold tracking-tight">
+          {title}
+        </h2>
+        <p className="max-w-[46ch] text-sm text-ink-2 text-pretty">
           {description}
         </p>
-        <Button variant="outline" onClick={onRetry}>
+        <Button variant="outline" className="mt-2" onClick={onRetry}>
           Try again
         </Button>
       </CardContent>
