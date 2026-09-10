@@ -22,35 +22,33 @@ function fileSize(bytes: number): string {
 }
 
 /**
- * A failed request splits into two very different facts.
+ * A failed import splits into two very different facts, and only one of them is
+ * safe to describe.
  *
- * An HTTP failure is the API's own answer: it read the request, rejected it, and
- * the import contract says nothing is replaced when one fails. Saying so is
- * safe.
+ * **The API answered and rejected it.** It read the request, refused it, and the
+ * import contract holds that a failed import replaces nothing. "Nothing was
+ * changed" is true.
  *
- * A network failure is not an answer at all. The request may have been received
- * and completed with only the response lost, so promising that nothing changed
- * would be a guarantee this side cannot make.
+ * **Everything else.** The request may have been received and applied with only
+ * the answer lost — `fetch` rejecting mid-flight, the response body failing to
+ * download, a truncated body failing to parse, or any error this side does not
+ * recognise. None of those is an answer, so none of them may be reported as one.
+ * The default is uncertainty, and only a recognised HTTP rejection escapes it.
  */
 function describeFailure(error: unknown): {
   title: string;
   detail: string;
   uncertain: boolean;
 } {
-  if (isApiError(error) && error.kind === "network") {
+  const rejected =
+    isApiError(error) && error.kind === "http" && error.status !== null;
+
+  if (!rejected) {
     return {
       title: "Couldn't confirm the result of this import",
       detail:
-        "The service could not be reached before it answered. The import may have been applied, or it may never have arrived. Refresh the history to see which, rather than importing again blind.",
+        "The service never gave an answer this side could read. The import may have been applied, or it may never have arrived. Refresh the history to see which, rather than importing again blind.",
       uncertain: true,
-    };
-  }
-
-  if (!isApiError(error)) {
-    return {
-      title: "Import failed — nothing was changed",
-      detail: "Something went wrong. Please try again.",
-      uncertain: false,
     };
   }
 
@@ -76,6 +74,8 @@ export function UploadCard({
   title,
   grain,
   columns,
+  effect,
+  confirmLabel,
   needsYear = false,
   onRefreshHistory,
 }: {
@@ -83,6 +83,9 @@ export function UploadCard({
   title: string;
   grain: string;
   columns: string;
+  /** What this particular import does to what is already loaded. */
+  effect: string;
+  confirmLabel: string;
   needsYear?: boolean;
   onRefreshHistory: () => void;
 }) {
@@ -91,9 +94,9 @@ export function UploadCard({
   const [dragging, setDragging] = useState(false);
   const [year, setYear] = useState("");
 
-  // Choosing a file stages it. Nothing is sent until the replace is confirmed:
-  // an import overwrites every month the file covers, which is not something to
-  // start by mistake from a mis-click in a file picker.
+  // Choosing a file stages it. Nothing is sent until the import is confirmed:
+  // it changes data that is already loaded, which is not something to start by
+  // mistake from a mis-click in a file picker.
   const [staged, setStaged] = useState<File | null>(null);
 
   const mine = upload.variables?.kind === kind;
@@ -152,17 +155,17 @@ export function UploadCard({
               </label>
             ) : null}
 
-            {/* Which months this replaces is only known once the API has read
-                the file, so it is reported afterwards rather than guessed at
+            {/* The three imports do not behave alike — a timesheet or salary
+                sheet replaces the months it covers, while a price sheet upserts
+                by ref code — so the sentence is the caller's, not a shared one.
+                Exactly which months are replaced is only known once the API has
+                read the file, and is reported afterwards rather than guessed at
                 here. */}
-            <p className="text-[12.5px] text-ink-2 text-pretty">
-              Importing replaces every month this file covers. Other months, and
-              your assumptions, are untouched.
-            </p>
+            <p className="text-[12.5px] text-ink-2 text-pretty">{effect}</p>
 
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" disabled={busy || Boolean(yearError)} onClick={confirm}>
-                {busy ? "Importing…" : "Upload and replace"}
+                {busy ? "Importing…" : confirmLabel}
               </Button>
               <Button
                 size="sm"

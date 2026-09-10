@@ -23,6 +23,13 @@ import { isApiError } from "@/lib/api";
 import { useImportHistory, useLoadSampleData } from "@/lib/imports";
 import { formatNumber } from "@/lib/format";
 
+/**
+ * The three imports do not behave alike, and the confirmation has to say which
+ * one is about to run. Checked against `apps/api`'s ImportsService: the
+ * timesheet and salary imports delete every row for the months the file covers
+ * before inserting, while the project import upserts by ref code and leaves
+ * anything it does not mention alone.
+ */
 const WORKBOOKS = [
   {
     kind: "timesheet" as const,
@@ -30,12 +37,18 @@ const WORKBOOKS = [
     grain: "One row per person, per task, per month.",
     columns:
       "Month · Employee No. · Employee Name · Type of Expense (DL/IDL) · Department · Designation · Category · Ref Code · Project / Task Name · Company · Description · Hours",
+    effect:
+      "Importing replaces every hour already recorded for the months this file covers. Other months, and your assumptions, are untouched.",
+    confirmLabel: "Upload and replace",
   },
   {
     kind: "salaries" as const,
     title: "Salary overview",
     grain: "One row per person, one column per month.",
     columns: "Employee Name, then January … December",
+    effect:
+      "Importing replaces every salary already recorded for the months this file has columns for — a blank column clears that month rather than leaving the old figure. Other months are untouched.",
+    confirmLabel: "Upload and replace",
     needsYear: true,
   },
   {
@@ -44,6 +57,11 @@ const WORKBOOKS = [
     grain: "One row per project.",
     columns:
       "Ref Code · Project Name · Project Price · Sales month · Category · Status",
+    // Not a replacement: the API upserts by ref code, and a catalogue that omits
+    // a project is far likelier to be partial than to mean "delete it".
+    effect:
+      "Importing adds the projects in this file and updates the ones already on record, matching on Ref Code. Projects the file does not mention are left exactly as they are, and no month of hours is touched.",
+    confirmLabel: "Upload and update",
   },
 ];
 
@@ -59,7 +77,7 @@ export function UploadsView() {
     <>
       <PageHeader
         title="Uploads"
-        description="Load the three spreadsheets every figure is built from. An import replaces only the months the file covers."
+        description="Load the three spreadsheets every figure is built from. Each one says what it will change before it runs."
         actions={
           <Button
             onClick={() => sample.mutate()}
@@ -185,8 +203,10 @@ export function UploadsView() {
       </Card>
 
       <p className="max-w-[90ch] text-[13px] text-ink-3 text-pretty">
-        An import replaces only the months the file covers; every other month and
-        your assumptions are untouched. If an import fails, nothing is replaced.
+        A timesheet or salary import replaces only the months its file covers;
+        every other month, and your assumptions, are untouched. A price import
+        adds and updates projects by Ref Code and removes nothing. If an import
+        is rejected, nothing is changed at all.
       </p>
     </>
   );

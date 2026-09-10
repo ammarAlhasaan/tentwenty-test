@@ -327,15 +327,24 @@ else, because a warning about March is misleading on a page showing July.
 every month. Where the selected month is not in the new year, the selection falls back to the whole
 year rather than leaving the filter disagreeing with the figures.
 
-**11.11 [ours] A destructive action is confirmed after the choice, not by it.** Choosing a workbook
-stages it; the import runs when "Upload and replace" is pressed. An import overwrites every month
-the file covers, which is not something a mis-click in a file picker should start.
+**11.11 [ours] A destructive action is confirmed after the choice, not by it, and the confirmation
+describes that action.** Choosing a workbook stages it; the import runs when the confirm button is
+pressed. The three imports do not behave alike — checked against `ImportsService`, a timesheet or
+salary import deletes every row for the months its file covers, while a project import upserts by
+Ref Code and removes nothing — so each card carries its own sentence and its own label ("Upload and
+replace" against "Upload and update"). A shared sentence would be wrong for one of them. Which
+months are actually replaced is only known once the API has read the file, so it is reported
+afterwards rather than predicted.
 
-**11.12 [ours] A failure message says only what this side can know.** An HTTP rejection is the API's
-own answer, and its import contract guarantees nothing is replaced when one fails — "nothing was
-changed" is true. A network failure is not an answer: the request may have been applied with only
-the response lost, so it reports that the result could not be *confirmed* and offers a way to look.
-The same distinction is already why README 2.3 keeps network failure separate from a 401.
+**11.12 [ours] A failure message says only what this side can know, and uncertainty is the
+default.** Only a recognised HTTP rejection — an `ApiError` with `kind: "http"` and a status — is
+the API's own answer, and its import contract guarantees nothing is replaced when one fails, so
+"nothing was changed" is true there. *Every* other failure is unconfirmed: `fetch` rejecting
+mid-flight, `response.text()` failing part-way through the body, `JSON.parse` failing on a truncated
+one, or anything unrecognised. Each of those can follow work the server has already done, so the
+message says the result could not be confirmed and offers a way to look. Written as "only a
+rejection is definite" rather than "these known failures are uncertain", so a new failure mode is
+safe by default. This is the same distinction that keeps network failure separate from a 401 in 2.3.
 
 **11.13 [ours] A form never rejects a value the API accepts.** The overhead field takes any
 non-negative amount, because that is what `PUT /settings` validates. A convenient `step` on a

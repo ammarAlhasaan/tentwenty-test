@@ -138,6 +138,21 @@ than `/auth/me` can now answer `401`.
 For contrast, a **full page load** with a revoked cookie reaches `/login?returnTo=…` with **no**
 expiry notice — correct, since a session the client never saw cannot have expired (README 6.3).
 
+## Third review follow-up verification — 2026-09-10
+
+| Check | Result |
+| --- | --- |
+| `pnpm --filter web exec tsc --noEmit` | clean |
+| `pnpm --filter web lint` | clean |
+| `pnpm --filter web build` | ✓ 10 routes: 9 static, `/projects/[refCode]` dynamic |
+| **P2** Per-import confirmation copy | Timesheet — *"replaces every hour already recorded for the months this file covers"*, **Upload and replace**. Salary overview — *"…for the months this file has columns for — a blank column clears that month"*, **Upload and replace**. Project prices — *"adds the projects in this file and updates the ones already on record, matching on Ref Code. Projects the file does not mention are left exactly as they are"*, **Upload and update**. Each was read off the rendered card. |
+| Copy checked against the API | `ImportsService.importTimesheet` and `importSalaries` `deleteMany` the periods their file covers before `createMany`; `importProjects` upserts by `refCode` with the comment *"A catalogue upload that omits a project is far more likely to be partial than to mean delete it"*, and returns `periodsReplaced: []`. |
+| **P2** Body-read failure on a **successful** import | `window.fetch` wrapped so the request reached the server and was applied, while `response.text()` rejected with a plain `TypeError`. The card reported **"Couldn't confirm the result of this import"** with **Refresh the history**; the phrase "nothing was changed" did not appear. |
+| …and the import really had landed | Pressing **Refresh the history** took it from 4 rows to 5, newest `project-prices-2025.xlsx · projects · 11`. This is the case the old wording would have described as "nothing was changed". |
+| HTTP rejection still definite | A 1-byte file named `.xlsx` returned `422` and reported "Import failed — nothing was changed". |
+| Notice layout | With an action button in a one-third-width card the message previously wrapped to two words per line; the action now drops below it. Verified on the uncertain-result notice. |
+| Baseline data intact afterwards | March 2025 still reports AED 114,012 profit and +36.7% margin. |
+
 ### Still not verified
 
 - **The `AuthGate` "can't reach the service" card.** With the API stopped the session check's retry

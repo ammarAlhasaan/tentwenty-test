@@ -56,7 +56,9 @@ export function Notice({
     <div
       role={role}
       className={cn(
-        "flex items-start gap-3 rounded-xl border px-4 py-3.5 text-foreground",
+        // Wraps rather than squeezing: in a narrow card an action button would
+        // otherwise crush the message into a two-word column.
+        "flex flex-wrap items-start gap-x-3 gap-y-2.5 rounded-xl border px-4 py-3.5 text-foreground",
         surface,
       )}
     >
@@ -68,7 +70,7 @@ export function Notice({
       >
         <Glyph className="size-4" aria-hidden />
       </span>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-64">
         <p className="text-sm font-bold">{title}</p>
         {children ? (
           <div className="mt-0.5 text-[13px] text-ink-2 text-pretty">
@@ -76,7 +78,7 @@ export function Notice({
           </div>
         ) : null}
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {action ? <div className="ms-auto shrink-0">{action}</div> : null}
     </div>
   );
 }

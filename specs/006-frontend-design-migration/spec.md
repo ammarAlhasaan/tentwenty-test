@@ -126,9 +126,13 @@ UI.
    accepted and the periods the API says it replaced.
 5. **Given** an unreadable file, **When** it uploads, **Then** the screen shows the API's own
    message and states that nothing was changed.
-6. **Given** the service is unreachable, **When** an upload is attempted, **Then** the screen says
-   the result could not be confirmed — never that nothing changed — and offers to refresh the
-   history.
+6. **Given** any failure that is not the API's own rejection — unreachable service, a response body
+   that fails to download or parse, an unrecognised error — **When** an upload is attempted,
+   **Then** the screen says the result could not be confirmed, never that nothing changed, and
+   offers to refresh the history.
+7. **Given** a workbook staged for import, **When** the confirmation is read, **Then** it describes
+   what *that* import does: replacing the months a timesheet or salary file covers, or adding and
+   updating projects by Ref Code without removing any.
 
 ---
 
@@ -202,9 +206,12 @@ must not regress.
   year does not hold. Where the month cannot be kept, the selection falls back to the whole year.
 - **FR-011** A destructive import MUST be confirmed after the file is chosen, not started by the
   act of choosing it.
-- **FR-012** A failure message MUST NOT claim more than this side can know. An HTTP rejection is
-  the API's own answer and may be reported as "nothing was changed"; a network failure leaves the
-  outcome unknown and MUST be reported as unconfirmed.
+- **FR-012** A failure message MUST NOT claim more than this side can know. Only a recognised HTTP
+  rejection — the API's own answer — may be reported as "nothing was changed". Every other failure,
+  including one raised while reading or parsing the response, MUST be reported as unconfirmed and
+  MUST offer a way to check.
+- **FR-015** A confirmation MUST describe the effect of the import it confirms. The three imports
+  do not behave alike, and a shared sentence would be wrong for at least one of them.
 - **FR-013** A form MUST NOT reject a value the API accepts.
 - **FR-014** A data-quality warning MUST be shown in the scope it describes. The period's own
   `completeness.issues` belong on the period's screen; the standing warnings `GET /periods`

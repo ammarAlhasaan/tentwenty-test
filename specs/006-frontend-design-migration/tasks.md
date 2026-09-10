@@ -158,3 +158,22 @@ the API accepts, and the project page had grown two sections the reference desig
 - [x] **T051** Re-run `tsc --noEmit`, `lint` and `build`, and verify each change in the browser.
 - [x] **T052** Verify the two states that had not been reached before: the partial-completeness
   branch, and the in-session expiry notice.
+
+## Phase 10 — Third review follow-up
+
+Review of `6ad2929` found two things: the uncertain-result handling still missed the case where the
+import succeeds and only the response body fails, and the confirmation text described a replacement
+that the project-price import does not perform.
+
+- [x] **T053** **[P2]** Invert `describeFailure`'s default. Only a recognised HTTP rejection
+  (`ApiError`, `kind: "http"`, a status) reports "nothing was changed"; everything else — a raw
+  `TypeError` from `response.text()`, a `SyntaxError` from `JSON.parse`, an unclassified throw —
+  reports an unconfirmed result and offers "Refresh the history".
+- [x] **T054** **[P2]** Give each workbook its own effect sentence and confirm label, checked
+  against `apps/api`'s `ImportsService`: the timesheet and salary imports delete the months their
+  file covers before inserting ("Upload and replace"), while the project import upserts by Ref Code
+  and removes nothing ("Upload and update"). The page's own summary copy was corrected to match.
+- [x] **T055** Fix the `Notice` layout flaw the new copy exposed: with an action button, a notice in
+  a narrow card crushed its message into a two-word column. It now wraps the action below.
+- [x] **T056** Re-run `tsc --noEmit`, `lint` and `build`, and verify both fixes in the browser —
+  including a simulated body-read failure on a genuinely applied import.
