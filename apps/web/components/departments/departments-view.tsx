@@ -7,7 +7,7 @@ import { CompletenessNotice } from "@/components/completeness-notice";
 import { EmptyState } from "@/components/empty-state";
 import { MissingValue } from "@/components/missing-value";
 import { PageHeader } from "@/components/page-header";
-import { PercentPill, Tag } from "@/components/pill";
+import { Tag } from "@/components/pill";
 import { usePeriodScope } from "@/components/period-scope";
 import { QueryError, TableSkeleton } from "@/components/query-states";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,7 +35,7 @@ export function DepartmentsView() {
     <>
       <PageHeader
         title="Departments"
-        description="Hours, cost and margin per department, and the people inside each one."
+        description="Hours and cost per department, and the people inside each one."
         actions={scope.filter}
       />
 
@@ -104,7 +104,6 @@ function DepartmentsTables({
                 <TableHead>Hours</TableHead>
                 <TableHead>Billable</TableHead>
                 <TableHead>Cost</TableHead>
-                <TableHead>Margin</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -138,9 +137,6 @@ function DepartmentsTables({
                       {formatNumber(entry.billableHours)}
                     </TableCell>
                     <TableCell numeric>{formatCurrency(entry.cost)}</TableCell>
-                    <TableCell>
-                      <PercentPill value={entry.margin} />
-                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -157,7 +153,6 @@ function DepartmentsTables({
                 <TableFooterCell numeric>
                   {formatCurrency(totals.cost)}
                 </TableFooterCell>
-                <TableFooterCell />
               </TableRow>
             </TableFooter>
           </TableScroller>
@@ -214,8 +209,7 @@ function DepartmentsTables({
       <p className="max-w-[90ch] text-[13px] text-ink-3 text-pretty">
         A department&apos;s cost is what its billable hours carry. Support staff
         log no billable time, so their salaries reach the departments that do —
-        which is why a support department can read a genuine cost of zero and an
-        unknown margin at the same time.
+        which is why a support department can read a genuine cost of zero.
       </p>
     </>
   );

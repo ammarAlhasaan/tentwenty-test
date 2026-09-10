@@ -469,6 +469,81 @@ exit 0.
 | `src/database/`, `analytics.repository.ts`, `sqlite-session.store.ts` | removed |
 | Raw SQL remaining | two `PRAGMA` statements in `PrismaService.onModuleInit`, explained in place |
 
+## Q23 — Scope cut and unified cost calculation · PASS
+
+Run on 2026-09-10 on port 4161 against an isolated database, after reducing the reported fields and
+collapsing three cost implementations into one.
+
+**Static:** `pnpm --filter api lint` 0 · `tsc --noEmit` 0 · `pnpm --filter api build` 0 ·
+`pnpm --filter web build` 0.
+
+**Every retained field diffed against a pre-change snapshot — all identical**, field by field:
+dashboard year and March (8 totals + 12 reconciliation fields each), the three March projects
+(13 fields each), project detail (`Q2025001a`: totals, 5 departments, 10 employees), departments
+(6 departments and all 12 nested employees), productivity (12 employees + company ratio),
+categories (11 categories).
+
+**Fields intentionally removed** — confirmed absent: `bookedRevenue`; `directCost` and its
+`totalDirectCost` / `billableDirectCost` / `internalDirectCost` totals; department
+`allocatedRevenue` / `profit` / `margin` / `productivity`; project `months`; the completeness block
+on `/productivity` and `/categories`.
+
+**The new missing-data policy**, with Ayesha Rahman's March salary removed (she has 139.7 billable
+hours that month):
+
+| Check | Observed |
+| --- | --- |
+| March `cost` | **170,471.11** — the costable subtotal, not `null` |
+| March `profit` / `margin` | `null` · `completeness.cost: partial` |
+| **Year `cost`** | **2,373,471.11** — a single gap no longer blanks the period |
+| Denominator | `billableHours` **1,230.7** (unchanged), `billableHoursUncosted` 139.7 |
+| Unattributable pool | `uncostedIndirectCost` **8,528.89**, `difference` **0**, `balances` true, `salariesComplete` false |
+| Scoped suppression | `Q2025009b` `costComplete: false`, `profitability: null`; every affected employee `profitability: null` while keeping a real cost |
+
+**Other scenarios**
+
+| Check | Observed |
+| --- | --- |
+| Unpriced project | `Q2025099z` listed with `priced: false`, detail `200`, `completeness.revenue: partial`; internal categories still excluded (January → `["Q2025001a"]`) |
+| Negative margin | price 1,000 vs cost 468,776.21 → `profitability` **−467.7762**, employee **−489.8056**, unclamped |
+| Restored sample data | hours 19,815.2 · billable 15,265.6 · cost **2,400,000** · allocated revenue 5,012,000 · margin 0.5211 |
+| All twelve months | cost equals each month's salary bill, `difference` 0 |
+| Coverage on hours pages | `/categories?year=2024` → `monthsCovered: 0`, `hasData: false`, no categories; `/productivity?year=2025&month=7` → `monthsCovered: 1`, `hasData: true` |
+
+## Q24 — Rebased onto main after 006 merged · PASS
+
+006 merged as PR #6; this branch was rebased onto `cc0e699` with no conflicts, then re-verified.
+
+**Static:** `api lint` 0 · `api tsc` 0 · `api build` 0 · `web lint` 0 · `web build` compiled.
+
+**Backend, fresh database:** empty state `{"years":[],"hasData":false,"warnings":[]}`; sample
+import 11/144/562 rows; year hours 19,815.2 · billable 15,265.6 · cost **2,400,000** ·
+allocated revenue 5,012,000 · margin 0.5211 · `difference` 0; all twelve months reconcile;
+`Q2025001a` cost 468,776.21, employee costs sum to it, revenue shares sum to 560,000.01;
+departments sum to 2,400,000.
+
+**Two regressions the browser check caught, both fixed:**
+
+| Missed | Symptom | Fix |
+| --- | --- | --- |
+| `salesMonth` dropped from the project list and detail | "sold in January 2025" silently vanished — types still declared it, so nothing failed to compile | Restored; it was never part of the agreed scope cut |
+| `warnings` dropped from `/periods` | The Uploads page's "standing gaps in the loaded data" panel went permanently empty | Restored; `/periods` loads the cost model for the default year and sits outside the hours/cost split |
+
+The field-by-field diff had only compared the fields listed for comparison, so a field removed by
+accident passed unnoticed. A full key-set audit of all six endpoints now confirms the shapes.
+
+**End-to-end in a browser** (API 4171, web 3010, real login):
+
+| Page | Observed |
+| --- | --- |
+| Dashboard | profit AED 2,612,000, margin +52.1%, hours 19,815.2, billable 15,265.6, cost AED 2,400,000, revenue AED 5,012,000; the Revenue card hint reads "each project's price, split by the hours worked in this period" |
+| Categories | Category / Counts as / Hours / Share — no cost column |
+| Departments | Department / Hours / Billable / Cost — no margin column; drill-down shows people with hours and cost |
+| Productivity | 12 people with hours, billable and ratio |
+| Projects · detail | `Q2025001a` price 560,000, hours 3,025.2, cost 468,776, profit AED 91,224, margin +16.3%, **"sold in January 2025"** |
+| Uploads | with one March salary removed: **"1 standing gap in the loaded data"** naming the employee and month |
+| Dashboard under that gap | **"We can't tell yet"**, profit and margin withheld, **cost still readable at AED 2,373,47x** — the year is not blanked |
+
 # Coverage audit
 
 ## Assessment requirements

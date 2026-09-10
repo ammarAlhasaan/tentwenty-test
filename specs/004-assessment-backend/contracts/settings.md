@@ -96,6 +96,6 @@ observed:
 | Change | Effect |
 | --- | --- |
 | `monthlyOverhead` = 10,000 | year `cost` 2,400,000 → **2,520,000** (12 x 10,000); March 197,000 → **207,000**; `expectedCost` rises identically and `balances` stays `true`; `allocatedRevenue` unchanged |
-| `Tentwenty` added to `billableCategories` | year `billableHours` 15,265.60 → **15,404.30**; `productivity` 0.7704 → **0.7774**; **`cost` unchanged at 2,400,000** and still balancing — moving a category redistributes cost, it does not create or destroy it; `completeness.revenue` becomes `partial` because `Tentwenty` has no price |
+| `Tentwenty` added to `billableCategories` | year `billableHours` 15,265.60 → **15,404.30**; `productivity` 0.7704 → **0.7774**; **`cost` unchanged at 2,400,000** and still balancing — moving a category redistributes cost, it does not create or destroy it; `completeness.revenue` on the cost endpoints becomes `partial` because `Tentwenty` has no price |
 | A category moved out | the mirror of the above |
 | All categories removed | rejected — a month with no billable hours can allocate no cost |

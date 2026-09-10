@@ -90,87 +90,94 @@ export function buildMonthModels(
 ): Map<string, MonthModel> {
   const salaryOf = new Map(salaries.map((s) => [`${monthKey(s.year, s.month)}|${s.employeeNo}`, s.amount]));
 
-  const months = new Map<string, { year: number; month: number; entries: Entry[] }>();
+  type Bucket = {
+    year: number;
+    month: number;
+    /** Per employee, accumulated in one pass rather than re-scanned per person. */
+    logged: Map<string, { total: number; billable: number; nonBillable: number }>;
+    paid: Set<string>;
+    billableHours: number;
+  };
+
+  const months = new Map<string, Bucket>();
+  const bucketFor = (year: number, month: number): Bucket => {
+    const key = monthKey(year, month);
+    let bucket = months.get(key);
+    if (!bucket) {
+      bucket = { year, month, logged: new Map(), paid: new Set(), billableHours: 0 };
+      months.set(key, bucket);
+    }
+    return bucket;
+  };
+
   for (const entry of entries) {
-    const key = monthKey(entry.year, entry.month);
-    const bucket = months.get(key) ?? { year: entry.year, month: entry.month, entries: [] };
-    bucket.entries.push(entry);
-    months.set(key, bucket);
+    const bucket = bucketFor(entry.year, entry.month);
+    const hours = bucket.logged.get(entry.employeeNo) ?? { total: 0, billable: 0, nonBillable: 0 };
+    hours.total += entry.hours;
+
+    if (isBillable(entry.category, assumptions)) {
+      hours.billable += entry.hours;
+      bucket.billableHours += entry.hours;
+    } else {
+      hours.nonBillable += entry.hours;
+    }
+
+    bucket.logged.set(entry.employeeNo, hours);
   }
+
   // A month can have salaries and no timesheet at all; it still has a pool.
-  for (const salary of salaries) {
-    const key = monthKey(salary.year, salary.month);
-    if (!months.has(key)) months.set(key, { year: salary.year, month: salary.month, entries: [] });
-  }
+  for (const salary of salaries) bucketFor(salary.year, salary.month).paid.add(salary.employeeNo);
 
   const models = new Map<string, MonthModel>();
 
   for (const [key, bucket] of months) {
-    const loggedHours = new Map<string, number>();
-    for (const entry of bucket.entries) {
-      loggedHours.set(entry.employeeNo, (loggedHours.get(entry.employeeNo) ?? 0) + entry.hours);
-    }
-
-    const paidThisMonth = salaries.filter((s) => monthKey(s.year, s.month) === key);
-    const people = new Set<string>([...loggedHours.keys(), ...paidThisMonth.map((s) => s.employeeNo)]);
-
     const directRates = new Map<string, number | null>();
     const missingSalaryEmployees: string[] = [];
     let pool = assumptions.monthlyOverhead;
     let knownSalaries = 0;
+    let uncostedBillableHours = 0;
 
-    for (const employeeNo of people) {
+    for (const employeeNo of new Set([...bucket.logged.keys(), ...bucket.paid])) {
       const salary = salaryOf.get(`${key}|${employeeNo}`);
-      const hours = loggedHours.get(employeeNo) ?? 0;
+      const hours = bucket.logged.get(employeeNo) ?? { total: 0, billable: 0, nonBillable: 0 };
 
       if (salary === undefined) {
-        // Unknown, not zero. Excluded from the model's denominators so the
-        // reconciliation stays exact over what is known; flagged separately.
+        // Unknown, not zero: no direct rate, so this person's rows cannot be
+        // costed. Their billable hours still count in the indirect rate's
+        // denominator below -- the assessment divides by all billable hours,
+        // and shrinking that would make colleagues absorb the missing share.
         directRates.set(employeeNo, null);
-        if (hours > 0) missingSalaryEmployees.push(employeeNo);
+        uncostedBillableHours += hours.billable;
+        if (hours.total > 0) missingSalaryEmployees.push(employeeNo);
         continue;
       }
 
       knownSalaries += salary;
 
-      if (hours === 0) {
+      if (hours.total === 0) {
         // Support staff: the whole salary is indirect.
         directRates.set(employeeNo, null);
         pool += salary;
         continue;
       }
 
-      const rate = salary / hours;
+      const rate = salary / hours.total;
       directRates.set(employeeNo, rate);
-
-      const nonBillable = bucket.entries
-        .filter((e) => e.employeeNo === employeeNo && !isBillable(e.category, assumptions))
-        .reduce((total, e) => total + e.hours, 0);
 
       // Direct rate only. Adding the indirect rate here would count the pool
       // inside itself and break the self-check.
-      pool += nonBillable * rate;
-    }
-
-    let billableHours = 0;
-    let uncostedBillableHours = 0;
-    for (const entry of bucket.entries) {
-      if (!isBillable(entry.category, assumptions)) continue;
-      billableHours += entry.hours;
-      // These hours still belong in the denominator; what is unknown is the
-      // direct rate to add to the indirect one, not the hours themselves.
-      if (directRates.get(entry.employeeNo) == null) uncostedBillableHours += entry.hours;
+      pool += hours.nonBillable * rate;
     }
 
     models.set(key, {
       year: bucket.year,
       month: bucket.month,
       directRates,
-      indirectRate: billableHours > 0 ? pool / billableHours : null,
+      indirectRate: bucket.billableHours > 0 ? pool / bucket.billableHours : null,
       pool,
       knownSalaries,
       overhead: assumptions.monthlyOverhead,
-      billableHours,
+      billableHours: bucket.billableHours,
       uncostedBillableHours,
       poolComplete: missingSalaryEmployees.length === 0,
       missingSalaryEmployees: [...new Set(missingSalaryEmployees)],
@@ -200,11 +207,38 @@ export function uncostedIndirect(model: MonthModel): number {
   return model.indirectRate * model.uncostedBillableHours;
 }
 
-/** Salary cost of any row, billable or not -- what the time cost to employ. */
-export function entryDirectCost(entry: Entry, model: MonthModel | undefined): number | null {
-  const direct = model?.directRates.get(entry.employeeNo);
-  if (direct === null || direct === undefined) return null;
-  return entry.hours * direct;
+/**
+ * Cost of a set of rows, and whether that figure is the whole story.
+ *
+ * The number is always the cost of the rows that could be costed -- never null,
+ * so a single gap cannot blank a year. `complete` is what says whether anything
+ * is missing from it, and callers withhold profit, margin and profitability
+ * when it is false.
+ *
+ * A month with a missing salary has an understated indirect rate, so EVERY row
+ * in it is priced too low -- including rows belonging to people whose own
+ * salary is known. Completeness is therefore a property of the months a group
+ * touches, not only of the group's own employees.
+ */
+export function costOf(
+  rows: Entry[],
+  models: Map<string, MonthModel>,
+  assumptions: Assumptions,
+): { cost: number; complete: boolean } {
+  let cost = 0;
+  let complete = true;
+
+  for (const row of rows) {
+    const model = models.get(monthKey(row.year, row.month));
+    if (!model || !model.poolComplete) complete = false;
+    if (!isBillable(row.category, assumptions)) continue;
+
+    const value = entryCost(row, model);
+    if (value === null) complete = false;
+    else cost += value;
+  }
+
+  return { cost, complete };
 }
 
 export function ratio(numerator: number, denominator: number | null): number | null {
