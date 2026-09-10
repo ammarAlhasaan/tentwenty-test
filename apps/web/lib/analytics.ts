@@ -139,15 +139,6 @@ export type ProjectDetailResponse = {
     profit: number | null;
     profitability: number | null;
   };
-  months: {
-    year: number;
-    month: number;
-    label: string;
-    hours: number | null;
-    cost: number | null;
-    costComplete: boolean;
-    allocatedRevenue: number | null;
-  }[];
   departments: {
     department: string;
     hours: number | null;

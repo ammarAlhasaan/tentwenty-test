@@ -304,9 +304,9 @@ for `0`.
 **11.5 [ours] Period selection lives in the URL**, not in a store. `safeReturnTo` allowlists
 pathnames, so an expiry returns to a screen's default period — see the comment in `lib/session.ts`.
 
-**11.6 [ours] No preview data remains.** The Dashboard reads `GET /periods` and `GET /dashboard`
-through `lib/analytics.ts`. The sample module that stood in while those endpoints were unlanded has
-been deleted. If preview data is ever needed again, the rule it followed applies: one clearly named
+**11.6 [ours] No preview data remains.** Every screen reads a real endpoint, through
+`lib/analytics.ts`, `lib/settings.ts` or `lib/imports.ts`. The sample module that stood in while
+those endpoints were unlanded has been deleted. If preview data is ever needed again, the rule it followed applies: one clearly named
 module, labelled on screen wherever it appears, never reachable through `apiFetch`, and performing
 no arithmetic — `apps/api` owns the cost model.
 
@@ -327,12 +327,26 @@ else, because a warning about March is misleading on a page showing July.
 every month. Where the selected month is not in the new year, the selection falls back to the whole
 year rather than leaving the filter disagreeing with the figures.
 
-**11.11 [ours] Uploads use the existing transport.** `apiFetch` passes a `FormData` body through
+**11.11 [ours] A destructive action is confirmed after the choice, not by it.** Choosing a workbook
+stages it; the import runs when "Upload and replace" is pressed. An import overwrites every month
+the file covers, which is not something a mis-click in a file picker should start.
+
+**11.12 [ours] A failure message says only what this side can know.** An HTTP rejection is the API's
+own answer, and its import contract guarantees nothing is replaced when one fails — "nothing was
+changed" is true. A network failure is not an answer: the request may have been applied with only
+the response lost, so it reports that the result could not be *confirmed* and offers a way to look.
+The same distinction is already why README 2.3 keeps network failure separate from a 401.
+
+**11.13 [ours] A form never rejects a value the API accepts.** The overhead field takes any
+non-negative amount, because that is what `PUT /settings` validates. A convenient `step` on a
+number input is a validation rule to the browser, not a hint.
+
+**11.14 [ours] Uploads use the existing transport.** `apiFetch` passes a `FormData` body through
 untouched, so the three import endpoints need no second transport and no `Content-Type` of their
 own. Both write paths — importing and saving assumptions — stamp the session in `onMutate`, check
 it before writing to the cache, and then invalidate `["analytics"]`: the API recalculates, the
 frontend does not.
 
-**11.12 [ours] `usePeriodScope` owns the period-scoped screens' shared shape.** Five screens need
+**11.15 [ours] `usePeriodScope` owns the period-scoped screens' shared shape.** Five screens need
 the same loaded periods, the same URL-backed selection, the same filter and the same four states. A
 sixth screen with those needs uses it; one without them does not.

@@ -107,7 +107,13 @@ export function UploadsView() {
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(19rem,1fr))] gap-5 items-start">
         {WORKBOOKS.map((workbook) => (
-          <UploadCard key={workbook.kind} {...workbook} />
+          <UploadCard
+            key={workbook.kind}
+            {...workbook}
+            // A network failure leaves the outcome unknown, so the card offers a
+            // way to look rather than a claim about what happened.
+            onRefreshHistory={() => void history.refetch()}
+          />
         ))}
       </div>
 

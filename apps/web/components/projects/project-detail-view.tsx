@@ -4,7 +4,7 @@ import Link from "next/link";
 import { CompletenessNotice } from "@/components/completeness-notice";
 import { MissingValue } from "@/components/missing-value";
 import { Notice } from "@/components/notice";
-import { PercentPill, ShareBar, Tag } from "@/components/pill";
+import { PercentPill } from "@/components/pill";
 import { QueryError, TableSkeleton } from "@/components/query-states";
 import { StatCard } from "@/components/stat-card";
 import { VerdictBanner } from "@/components/dashboard/verdict-banner";
@@ -12,8 +12,6 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   TableBody,
   TableCell,
-  TableFooter,
-  TableFooterCell,
   TableHead,
   TableHeader,
   TableName,
@@ -62,7 +60,7 @@ export function ProjectDetailView({ refCode }: { refCode: string }) {
 }
 
 function ProjectDetail({ data }: { data: ProjectDetailResponse }) {
-  const { totals, months, departments, employees, completeness } = data;
+  const { totals, departments, employees, completeness } = data;
 
   return (
     <>
@@ -112,55 +110,6 @@ function ProjectDetail({ data }: { data: ProjectDetailResponse }) {
         completeness={completeness}
         periodLabel={data.refCode}
       />
-
-      <Card className="py-0">
-        <CardHeader className="px-5 pt-5">
-          <CardTitle>Month by month</CardTitle>
-        </CardHeader>
-        <TableScroller minWidth={560}>
-          <TableHeader>
-            <TableRow>
-              <TableHead align="start">Month</TableHead>
-              <TableHead>Hours</TableHead>
-              <TableHead>Cost</TableHead>
-              <TableHead>Revenue earned</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {months.map((month) => (
-              <TableRow key={month.label}>
-                <TableCell align="start">
-                  {month.label}
-                  {!month.costComplete ? (
-                    <span className="ml-2">
-                      <Tag tone="warning">cost partial</Tag>
-                    </span>
-                  ) : null}
-                </TableCell>
-                <TableCell numeric>{formatNumber(month.hours)}</TableCell>
-                <TableCell numeric>{formatCurrency(month.cost)}</TableCell>
-                <TableCell numeric>
-                  {formatCurrency(month.allocatedRevenue)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-          <TableFooter>
-            <TableRow>
-              <TableFooterCell align="start">Total</TableFooterCell>
-              <TableFooterCell numeric>
-                {formatNumber(totals.hours)}
-              </TableFooterCell>
-              <TableFooterCell numeric>
-                {formatCurrency(totals.cost)}
-              </TableFooterCell>
-              <TableFooterCell numeric>
-                {formatCurrency(data.price)}
-              </TableFooterCell>
-            </TableRow>
-          </TableFooter>
-        </TableScroller>
-      </Card>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <Card className="py-0">
@@ -246,25 +195,6 @@ function ProjectDetail({ data }: { data: ProjectDetailResponse }) {
         </Card>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <p className="text-[12.5px] text-ink-3">
-          Share of the project&apos;s hours, by department
-        </p>
-        {departments.map((department) => (
-          <div
-            key={department.department}
-            className="flex items-center gap-3 text-[12.5px]"
-          >
-            <span className="w-32 shrink-0 truncate text-ink-2">
-              {department.department}
-            </span>
-            <ShareBar value={department.shareOfHours} />
-            <span className="w-14 shrink-0 text-right font-mono tabular-nums text-ink-2">
-              {formatShare(department.shareOfHours)}
-            </span>
-          </div>
-        ))}
-      </div>
     </>
   );
 }

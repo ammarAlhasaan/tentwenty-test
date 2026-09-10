@@ -120,10 +120,15 @@ UI.
    uploads screen.
 2. **Given** the uploads screen, **When** "Load the sample workbooks" is pressed, **Then** the
    three workbooks are imported and every reporting screen fills in without a reload.
-3. **Given** a valid workbook chosen or dropped, **When** it uploads, **Then** the screen reports
-   the rows accepted and the periods replaced.
-4. **Given** an unreadable file, **When** it uploads, **Then** the screen shows the API's own
+3. **Given** a chosen or dropped file, **When** it is selected, **Then** nothing is sent: the
+   screen shows the file's name and size and waits for an explicit "Upload and replace".
+4. **Given** a confirmed valid workbook, **When** it uploads, **Then** the screen reports the rows
+   accepted and the periods the API says it replaced.
+5. **Given** an unreadable file, **When** it uploads, **Then** the screen shows the API's own
    message and states that nothing was changed.
+6. **Given** the service is unreachable, **When** an upload is attempted, **Then** the screen says
+   the result could not be confirmed — never that nothing changed — and offers to refresh the
+   history.
 
 ---
 
@@ -142,6 +147,8 @@ recalculates every screen.
    reporting screens show the new figures with no reload.
 2. **Given** no category ticked, or a negative overhead, **When** the form is reviewed, **Then**
    saving is blocked with the reason shown inline.
+3. **Given** an overhead the API accepts, such as `1234.50`, **When** it is entered, **Then** the
+   field accepts it — the form does not narrow what the backend allows.
 
 ---
 
@@ -193,7 +200,13 @@ must not regress.
   mutation MUST stamp the session in `onMutate` and check it before writing to the cache.
 - **FR-010** Changing the year in the period filter MUST NOT leave a month selected that the new
   year does not hold. Where the month cannot be kept, the selection falls back to the whole year.
-- **FR-011** A data-quality warning MUST be shown in the scope it describes. The period's own
+- **FR-011** A destructive import MUST be confirmed after the file is chosen, not started by the
+  act of choosing it.
+- **FR-012** A failure message MUST NOT claim more than this side can know. An HTTP rejection is
+  the API's own answer and may be reported as "nothing was changed"; a network failure leaves the
+  outcome unknown and MUST be reported as unconfirmed.
+- **FR-013** A form MUST NOT reject a value the API accepts.
+- **FR-014** A data-quality warning MUST be shown in the scope it describes. The period's own
   `completeness.issues` belong on the period's screen; the standing warnings `GET /periods`
   reports for the dataset belong with the files that produced them.
 
@@ -216,6 +229,11 @@ must not regress.
 - Editing or deleting an import after the fact; the API offers no endpoint for it.
 - A department's own page. The drill-down is nested inside the departments response, so opening a
   department costs no request and needs no route.
+- A month-by-month table on the project page, and a second rendering of the department split as
+  bars. Neither is in the reference design or asked for by the brief; the project page carries the
+  project's own figures, its departments and its people.
+- A preview of which periods an import will replace. The API only knows once it has read the file,
+  so the screen states the rule and reports the actual periods afterwards.
 - The prototype's Departments, Uploads, Assumptions and Project-detail screens. Each exists only
   to display backend data that has no landed contract; adding the routes now would create
   navigation that leads nowhere.

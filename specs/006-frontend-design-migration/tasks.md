@@ -135,3 +135,26 @@ and `/periods` warnings were shown outside the scope they describe. All four are
 - [x] **T046** Re-run `tsc --noEmit`, `lint` and `build`; verify every screen in the browser
   against the running API, including an empty database, the sample-load button, a real multipart
   upload, a rejected upload, and a saved assumption changing the reported figures.
+
+## Phase 9 — Second review follow-up
+
+Review of `f727e5e` found four things: choosing a file started a destructive import with no
+confirmation, a network failure claimed nothing had changed, the overhead field rejected amounts
+the API accepts, and the project page had grown two sections the reference design does not have.
+
+- [x] **T047** **[P1]** Make the upload two-step: choosing or dropping a file stages it and shows
+  its name, size and (for salaries) the year, and nothing is sent until "Upload and replace" is
+  pressed. No invented preview of which periods will be replaced — the API only knows once it has
+  read the file, so the screen states the rule and reports the actual periods afterwards.
+- [x] **T048** **[P2]** Split the failure message in two. An HTTP rejection keeps "nothing was
+  changed" — the API answered, and its import contract guarantees it. A network failure reports
+  that the result could not be confirmed and offers "Refresh the history", because the import may
+  have been applied with only the response lost.
+- [x] **T049** **[P2]** Change the overhead field to `step="any"` so `1234.50` and `1250` are
+  accepted, matching the API's own validation.
+- [x] **T050** **[P2]** Remove the month-by-month table and the duplicate department share bars
+  from the project page, returning it to the reference design's shape. Drop `months[]` from the
+  declared response type, which the frontend no longer renders.
+- [x] **T051** Re-run `tsc --noEmit`, `lint` and `build`, and verify each change in the browser.
+- [x] **T052** Verify the two states that had not been reached before: the partial-completeness
+  branch, and the in-session expiry notice.

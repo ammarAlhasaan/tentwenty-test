@@ -121,7 +121,10 @@ function AssumptionsForm({
               type="number"
               inputMode="decimal"
               min={0}
-              step={500}
+              // Any non-negative amount the API accepts must be enterable: a
+              // fixed step makes the browser reject 1,250 or 1,234.50 before
+              // the form is ever submitted.
+              step="any"
               value={overhead}
               aria-invalid={overheadError ? true : undefined}
               aria-describedby="overhead-hint"
@@ -137,7 +140,7 @@ function AssumptionsForm({
               }
             >
               {overheadError ??
-                "Zero is a valid answer, and is what the assessment's own self-check uses."}
+                "Any amount from zero upwards, whole dirhams or not. Zero is what the assessment's own self-check uses."}
             </p>
           </CardContent>
         </Card>

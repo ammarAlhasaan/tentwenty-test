@@ -88,48 +88,59 @@ API running with the three supplied workbooks loaded via `POST /imports/sample`
 | Mobile 375, live data | No horizontal overflow; sign-out present; banner and cards stack. |
 | `tsc --noEmit`, `lint`, `build` | Re-run after the integration — all three clean. |
 
-### Still not verified
-
-- **The partial-completeness banner.** The supplied workbooks are complete
-  (`completeness.cost` and `.revenue` both `complete`, zero issues), so the
-  `partial` branch was never rendered. Reaching it needs a dataset with a missing
-  salary or an unpriced ref code. The branch is written against the documented
-  `completeness.issues[]` shape and compiles; it has not been seen on screen.
-
-## Review follow-up verification — 2026-09-10
-
-Everything below was performed against the running API in a browser, after the four review findings
-were addressed.
+## Second review follow-up verification — 2026-09-10
 
 | Check | Result |
 | --- | --- |
 | `pnpm --filter web exec tsc --noEmit` | clean |
-| `pnpm --filter web lint` | clean (one real finding fixed on the way: `setState` inside an effect in the assumptions form, replaced with a keyed remount) |
+| `pnpm --filter web lint` | clean (two unused imports left by the trim were removed) |
 | `pnpm --filter web build` | ✓ 10 routes: 9 static, `/projects/[refCode]` dynamic |
-| **P1-1** Projects | 11 projects for 2025 with price, hours, cost, revenue earned, profit and margin; totals only over the additive columns. |
-| **P1-1** Project page | `Q2025001a`: price 560,000 · cost 468,776 · profit 91,224 · profitability +16.3% · 3,025.2 h — matches `GET /projects/Q2025001a` exactly, including January's 197,000. |
-| **P1-1** Departments | March 2025: six departments totalling 1,642.9 h and AED 197,000 — the same totals the Dashboard reports. The nested drill-down shows Design's three people. Management reads a genuine `AED 0` cost and an em-dash margin. |
-| **P1-1** Productivity | Twelve people for 2025, sorted by productivity, with the department filter. |
-| **P1-1** Categories | Eleven categories, billable/internal tags, shares and direct cost, totalling AED 2,399,999.99. |
-| **P1-2** Empty instance | Database deleted and re-migrated: Dashboard shows "No data has been ingested yet" with a link to Uploads. |
-| **P1-2** Sample button | Pressed in the UI on the empty instance: the three workbooks imported, results listed per file, and the Dashboard filled in (2025: AED 5,012,000 revenue, +52.1% margin) **without a reload**. |
-| **P1-2** Real upload | `project-prices-2025.xlsx` put through the file input: 11 rows accepted, import history refreshed on its own. This is the multipart path through `apiFetch`, not the sample endpoint. |
-| **P1-2** Rejected upload | A text file named `.xlsx`: "Import failed — nothing was changed · That file is not a readable .xlsx workbook." — the API's own message. |
-| **P2-4** Warning scope | The Dashboard now renders only the selected period's `completeness.issues`; `/periods` standing warnings render on Uploads, labelled "standing gaps in the loaded data". |
-| Assumptions save | Overhead 0 → 50,000 saved: March cost went 197,000 → 247,000, profit 114,012 → 64,012, margin +36.7% → +20.6%, with no reload. The API recalculated; the frontend did no arithmetic. Reset to 0 afterwards. |
-| Mobile 375 | Projects: no page overflow, the table scrolls inside its own container, sign-out present. |
-| Navigation | Both design groups (Reporting, Data) render; every entry leads to a route that shows something. |
+| **P1** Choosing a file | Selecting `my-timesheet.xlsx` staged it — name and size shown, "Upload and replace" and "Cancel" offered, **no request sent**. |
+| **P1** Confirming | Pressing "Upload and replace" runs the import; a rejected file reports the API's own message. |
+| **P2** Network failure | API stopped, then an upload confirmed: "Couldn't confirm the result of this import … The import may have been applied, or it may never have arrived." with a **Refresh the history** button. The phrase "nothing was changed" does not appear. |
+| **P2** Refresh after a network failure | Pressed with the API back up: the history reloaded (4 rows). |
+| **P2** HTTP rejection still definite | A text file named `.xlsx`: "Import failed — nothing was changed · That file is not a readable .xlsx workbook." — correct, because the API answered. |
+| **P2** Overhead field | `step="any"`; `1234.5` reports `checkValidity() === true` with no validation message, and saved successfully. |
+| **P2** Project page | "Month by month" and the department share bars are gone; the page is Verdict, three metrics, "Hours and cost by department" and "Employee contribution" — the reference design's shape. |
+
+### Partial completeness — now verified
+
+Produced through the app's own UI rather than by editing data: `Tentwenty` was ticked as billable
+on the Assumptions screen. It has hours and a ref code but no price row, which is exactly the gap
+the completeness contract describes.
+
+- The banner switched to its third tone: *"We can't tell yet — the figures behind this month are
+  incomplete."*
+- Profit and Margin rendered as em dashes carrying the accessible label "Missing from the source
+  data" — not zeroes.
+- Cost and Revenue still showed their known subtotals.
+- The scoped notice read *"Revenue for March 2025 is a known subtotal, not the whole answer ·
+  Tentwenty has billable hours in this period and no usable price, so its revenue is unknown."*
+- On Projects, that row carried a **no price on file** tag, an em dash price, `AED 0` revenue — a
+  genuine zero — and em dashes for profit and margin.
+
+The assumption was restored to `["Projects", "Enhancements", "Hosting"]` with overhead `0`
+afterwards.
+
+### Session expiry — now verified
+
+Previously unreachable; the reporting queries made it reachable, because a protected endpoint other
+than `/auth/me` can now answer `401`.
+
+1. Signed in, then revoked the cookie server-side with a direct `POST /auth/logout`, leaving the
+   client still holding a signed-in session.
+2. Followed a sidebar link (a client-side navigation, so the app keeps having "seen" a user) to a
+   screen whose query was not cached.
+3. That query answered `401`, the central policy ended the session, and `AuthGate` navigated to
+   **`/login?reason=expired&returnTo=%2Fdepartments`** with "Your session ended · Please sign in
+   again to carry on." shown once.
+
+For contrast, a **full page load** with a revoked cookie reaches `/login?returnTo=…` with **no**
+expiry notice — correct, since a session the client never saw cannot have expired (README 6.3).
 
 ### Still not verified
 
-- **The month-fallback path (P2-3) end to end.** The fix is in
-  `usePeriodScope.selectPeriod`, but every year in the supplied dataset holds all twelve months, so
-  no year exists that a selected month could be stripped by. The related case *is* covered: a
-  period reached by URL that the data does not hold shows the empty state and issues no
-  `/dashboard` request.
-- **The partial-completeness banner.** The supplied workbooks are complete
-  (`completeness.cost` and `.revenue` both `complete`, zero issues), so the `partial` branch still
-  has not rendered. It is written against the documented `issues[]` shape and compiles.
-- **The in-session expiry notice end to end**, and the `AuthGate` "can't reach the service" card —
-  unchanged from the previous run, and for the same reason: the automation tab never becomes
-  visible, so React Query's paused retry never resumes.
+- **The `AuthGate` "can't reach the service" card.** With the API stopped the session check's retry
+  is *paused* rather than failed — documented behaviour for a hidden tab under
+  `networkMode: "online"` (README 3.10) — and the automation tab never reports itself visible, so
+  the retry never resumes to produce the error state.
