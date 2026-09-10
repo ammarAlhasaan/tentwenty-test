@@ -1,127 +1,16 @@
-import { Info } from "lucide-react";
-import { StatCard } from "@/components/stat-card";
+import { Suspense } from "react";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { formatCurrency, formatHours, formatPercent } from "@/lib/format";
+  DashboardView,
+  DashboardViewFallback,
+} from "@/components/dashboard/dashboard-view";
 
-// Placeholder figures. Every derived value — ratios, profit, margin — is a
-// literal here rather than something this page works out, because the API owns
-// the calculations. This page formats what it is given and nothing more.
-const headline = {
-  totalHours: 61840,
-  billableHours: 44120,
-  billableRatio: 0.7134,
-  cost: 8420000,
-  revenue: 10310000,
-  profit: 1890000,
-  margin: 0.1833,
-};
-
-const projects = [
-  { ref: "TT-1042", name: "Meridian rebrand", price: 480000, hours: 2140, cost: 391000, margin: 0.1854 },
-  { ref: "TT-1078", name: "Harbour app build", price: 1250000, hours: 6380, cost: 1104000, margin: 0.1168 },
-  { ref: "TT-1091", name: "Nova commerce platform", price: 890000, hours: 5210, cost: 963000, margin: -0.082 },
-  { ref: "TT-1103", name: "Atlas annual report", price: 210000, hours: 940, cost: 168000, margin: 0.2 },
-  { ref: "TT-1117", name: "Kestrel campaign site", price: 365000, hours: 1780, cost: 302000, margin: 0.1726 },
-  { ref: "TT-1124", name: "Orient hosting retainer", price: 144000, hours: 610, cost: 98000, margin: 0.3194 },
-];
-
+// A server shell only. Nothing private is rendered here: the figures live in a
+// client component behind AuthGate, and the gate is a UX boundary, not an
+// authorization one (apps/web/README.md, section 8).
 export default function DashboardPage() {
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">
-          Dashboard
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Hours, cost, revenue and margin across the agency.
-        </p>
-      </div>
-
-      <div
-        role="note"
-        className="flex items-start gap-2 rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground"
-      >
-        <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
-        <p>
-          <span className="font-medium text-foreground">
-            Sample layout — these figures are placeholders.
-          </span>{" "}
-          No spreadsheets have been ingested yet, so nothing on this page is a
-          real measurement.
-        </p>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <StatCard label="Total hours" value={formatHours(headline.totalHours)} />
-        <StatCard
-          label="Billable hours"
-          value={formatHours(headline.billableHours)}
-          hint={`${formatPercent(headline.billableRatio)} of logged time`}
-        />
-        <StatCard label="Cost" value={formatCurrency(headline.cost)} />
-        <StatCard label="Revenue" value={formatCurrency(headline.revenue)} />
-        <StatCard
-          label="Margin"
-          value={formatPercent(headline.margin)}
-          tone={headline.margin >= 0 ? "positive" : "negative"}
-          hint={formatCurrency(headline.profit)}
-        />
-      </div>
-
-      <section className="flex flex-col gap-3">
-        <h2 className="font-heading text-lg font-semibold tracking-tight">
-          Projects
-        </h2>
-        <div className="rounded-xl ring-1 ring-foreground/10">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ref</TableHead>
-                <TableHead>Project</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">Hours</TableHead>
-                <TableHead className="text-right">Cost</TableHead>
-                <TableHead className="text-right">Margin</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {projects.map((project) => (
-                <TableRow key={project.ref}>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {project.ref}
-                  </TableCell>
-                  <TableCell className="font-medium">{project.name}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatCurrency(project.price)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatHours(project.hours)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatCurrency(project.cost)}
-                  </TableCell>
-                  <TableCell
-                    className={
-                      project.margin >= 0
-                        ? "text-right font-medium tabular-nums text-positive"
-                        : "text-right font-medium tabular-nums text-negative"
-                    }
-                  >
-                    {formatPercent(project.margin)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </section>
-    </div>
+    <Suspense fallback={<DashboardViewFallback />}>
+      <DashboardView />
+    </Suspense>
   );
 }

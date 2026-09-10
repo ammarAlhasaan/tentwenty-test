@@ -125,6 +125,13 @@ export function consumeDeliberateSignOut(): boolean {
  * Post-sign-in destinations, as a literal allowlist. Filtering a URL instead
  * invites the browser's parser and the filter to disagree about inputs like
  * `//host` or `/\host`; there is no such gap in a lookup.
+ *
+ * Pathnames only. A screen whose state lives in the query string — the
+ * dashboard's `?year=&month=` — returns to its default period after an expiry.
+ * Carrying the query through would mean accepting an arbitrary string here,
+ * which is the gap the allowlist exists to close.
+ *
+ * A new screen is added by appending its path to this list and to AppNav.
  */
 const RETURN_TO = ["/", "/projects", "/productivity", "/categories"] as const;
 

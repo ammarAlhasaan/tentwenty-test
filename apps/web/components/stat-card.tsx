@@ -1,37 +1,56 @@
-import { Card, CardContent, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { MissingValue } from "@/components/missing-value";
+import { ABSENT } from "@/lib/format";
 import { cn } from "cn";
 
 export function StatCard({
   label,
   value,
   hint,
+  share,
   tone = "neutral",
 }: {
   label: string;
+  /** Already formatted. An em dash means the source had no value. */
   value: string;
-  hint?: string;
+  hint?: React.ReactNode;
+  /** 0–1. Draws the design's progress bar under the value. */
+  share?: number | null;
   tone?: "neutral" | "positive" | "negative";
 }) {
   return (
-    <Card size="sm">
-      <CardContent className="flex flex-col gap-1">
-        <CardDescription className="text-xs font-medium tracking-wide uppercase">
-          {label}
-        </CardDescription>
-        <p
-          className={cn(
-            // No responsive step-up: the page container is capped at
-            // max-w-7xl, so these cards are no wider at 2xl than at xl and a
-            // larger size would clip the longest currency figure.
-            "font-heading text-xl font-semibold tabular-nums",
-            tone === "positive" && "text-positive",
-            tone === "negative" && "text-negative"
-          )}
-        >
-          {value}
-        </p>
+    <Card>
+      <CardContent className="flex flex-col gap-2.5">
+        <p className="text-[12.5px] font-semibold text-ink-3">{label}</p>
+
+        {value === ABSENT ? (
+          <MissingValue className="text-3xl font-bold" />
+        ) : (
+          <p
+            className={cn(
+              "font-mono text-3xl leading-tight font-bold tracking-display tabular-nums",
+              tone === "positive" && "text-positive",
+              tone === "negative" && "text-negative",
+            )}
+          >
+            {value}
+          </p>
+        )}
+
+        {share == null ? null : (
+          <div
+            className="h-2 overflow-hidden rounded-full bg-line-2"
+            role="presentation"
+          >
+            <div
+              className="h-full rounded-full bg-brand"
+              style={{ width: `${Math.max(0, Math.min(1, share)) * 100}%` }}
+            />
+          </div>
+        )}
+
         {hint ? (
-          <p className="text-xs text-muted-foreground">{hint}</p>
+          <p className="text-[12.5px] text-ink-2 text-pretty">{hint}</p>
         ) : null}
       </CardContent>
     </Card>

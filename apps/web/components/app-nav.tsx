@@ -26,7 +26,7 @@ export function AppNav({ layout }: { layout: "rail" | "bar" }) {
     <ul
       className={cn(
         "flex gap-1",
-        layout === "rail" ? "flex-col" : "flex-row overflow-x-auto"
+        layout === "rail" ? "flex-col" : "flex-row overflow-x-auto",
       )}
     >
       {sections.map(({ href, label, icon: Icon }) => {
@@ -38,15 +38,13 @@ export function AppNav({ layout }: { layout: "rail" | "bar" }) {
               href={href}
               aria-current={current ? "page" : undefined}
               className={cn(
-                "flex items-center gap-2 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-colors",
+                "flex items-center gap-2.5 rounded-[11px] px-3 py-2.5 text-sm whitespace-nowrap transition-colors",
                 "outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                // Current state is carried by weight and a rule as well as
-                // colour, so it survives a monochrome or high-contrast view.
+                // Current state is carried by weight as well as colour, so it
+                // survives a monochrome or high-contrast view.
                 current
-                  ? "bg-muted font-semibold text-foreground"
-                  : "font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                current && layout === "rail" && "border-l-2 border-foreground",
-                current && layout === "bar" && "border-b-2 border-foreground"
+                  ? "bg-brand-soft font-bold text-brand-strong"
+                  : "font-medium text-ink-2 hover:bg-brand-tint hover:text-foreground",
               )}
             >
               <Icon className="size-4" aria-hidden />

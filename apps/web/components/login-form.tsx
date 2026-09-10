@@ -4,12 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Notice } from "@/components/notice";
 import { isApiError } from "@/lib/api";
 import { useLogin, useMe } from "@/lib/auth";
 import { safeReturnTo } from "@/lib/session";
 
 const FIELD_CLASS =
-  "h-9 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50";
+  "h-12 w-full rounded-[13px] border border-input bg-card px-3.5 text-[14.5px] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50";
+
+const LABEL_CLASS = "text-[13px] font-semibold";
 
 function messageFor(error: unknown): string {
   if (!isApiError(error)) return "Something went wrong. Please try again.";
@@ -66,6 +69,7 @@ export function LoginForm() {
   return (
     <form
       className="flex flex-col gap-4"
+      noValidate
       onSubmit={(event) => {
         event.preventDefault();
         if (signIn.isPending) return;
@@ -73,16 +77,13 @@ export function LoginForm() {
       }}
     >
       {expired ? (
-        <p
-          role="status"
-          className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground"
-        >
-          Your session ended. Please sign in again.
-        </p>
+        <Notice tone="info" title="Your session ended">
+          Please sign in again to carry on.
+        </Notice>
       ) : null}
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="email" className="text-sm font-medium">
+        <label htmlFor="email" className={LABEL_CLASS}>
           Email
         </label>
         <input
@@ -91,6 +92,7 @@ export function LoginForm() {
           type="email"
           autoComplete="username"
           required
+          placeholder="name@agency.com"
           className={FIELD_CLASS}
           value={email}
           onChange={(event) => setEmail(event.target.value)}
@@ -99,7 +101,7 @@ export function LoginForm() {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="password" className="text-sm font-medium">
+        <label htmlFor="password" className={LABEL_CLASS}>
           Password
         </label>
         <div className="flex items-center gap-2">
@@ -117,7 +119,7 @@ export function LoginForm() {
           <Button
             type="button"
             variant="outline"
-            size="icon"
+            size="icon-lg"
             aria-label={visible ? "Hide password" : "Show password"}
             onClick={() => setVisible((shown) => !shown)}
           >
@@ -127,12 +129,10 @@ export function LoginForm() {
       </div>
 
       {signIn.isError ? (
-        <p role="alert" className="text-sm text-negative">
-          {messageFor(signIn.error)}
-        </p>
+        <Notice tone="danger" title={messageFor(signIn.error)} />
       ) : null}
 
-      <Button type="submit" disabled={signIn.isPending}>
+      <Button type="submit" size="lg" className="mt-1" disabled={signIn.isPending}>
         {signIn.isPending ? "Signing in…" : "Sign in"}
       </Button>
     </form>

@@ -279,3 +279,32 @@ renders from it; `["auth", "me"]` remains the only thing the UI reads.
 4. Private mutations stamp the session in `onMutate` and check it before session-sensitive callbacks.
 5. Handle `400` and `429` where the request is made. Do **not** handle `401` — the central policy does.
 6. Change `providers.tsx` only when the *policy* changes, and amend this file when it does.
+
+## 11. Presentation conventions
+
+**Added by** spec `006-frontend-design-migration` (FE-03).
+
+**11.1 [ours] Design values are tokens, not literals.** The approved design's palette, type scale,
+radii and shadows live in `app/globals.css` and reach components as Tailwind utilities. A hex value
+in a component is a defect.
+
+**11.2 [ours] Colours that failed WCAG AA as text were darkened, not copied.** The design's
+`--ink-3` (#9b9cb8, 2.51:1), `--neg` (#e14b3c, 3.73:1) and `--warn` (#b8730a, 3.58:1) are used
+there for small text. `globals.css` carries darker equivalents with the measured ratio beside each.
+
+**11.3 [ours] Two percent formatters, deliberately.** `formatPercent` is signed and is for a
+*result* — margin, profitability. `formatShare` is unsigned and is for a *portion* — productivity,
+share of hours. Both take a **ratio (0–1)**, matching the API's number contract. The design
+prototype used percentage points; that is not this codebase's unit.
+
+**11.4 [ours] An absent value is never a zero.** `MissingValue` renders the em dash with an
+accessible label. Every formatter returns `ABSENT` for `null`/`undefined` and a formatted zero
+for `0`.
+
+**11.5 [ours] Period selection lives in the URL**, not in a store. `safeReturnTo` allowlists
+pathnames, so an expiry returns to a screen's default period — see the comment in `lib/session.ts`.
+
+**11.6 [ours] Sample data is confined to `lib/sample-dashboard.ts`,** labelled on screen wherever it
+appears, and never reaches `apiFetch`. It exists only because the assessment endpoints are not on
+`main`. It performs no arithmetic: every derived figure is a literal, because `apps/api` owns the
+cost model. Deleting the file is the last step of the real integration.
