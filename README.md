@@ -104,9 +104,13 @@ them. That's why the history reads as deliberate steps rather than one large dro
 
 ## Tests
 
-**In progress — landing shortly.** The plan is written up in
-[`specs/009-cost-model-tests/`](specs/009-cost-model-tests): nine focused cases on
-[`cost-model.ts`](apps/api/src/analytics/cost-model.ts), run with Vitest.
+```bash
+cd apps/api && pnpm test
+```
+
+Nine focused cases on [`cost-model.ts`](apps/api/src/analytics/cost-model.ts), run with Vitest —
+9 passing in about 150 ms, with no database, no network and no spreadsheet. Planned in
+[`specs/009-cost-model-tests/`](specs/009-cost-model-tests).
 
 The cases were chosen to cover the calculation that actually carries risk, not to inflate a
 coverage number:
@@ -120,6 +124,12 @@ coverage number:
 - an employee with hours but no salary row is reported as incomplete, and the balance still closes;
 - a month with no billable hours yields no rate instead of dividing by zero;
 - the billable-category match is case-insensitive, and a negative margin stays negative.
+
+Every expected figure is derived by hand from the brief's formulas in
+[`data-model.md`](specs/009-cost-model-tests/data-model.md), not copied from what the code returns —
+otherwise a test proves only that the code still agrees with itself. The suite was also checked the
+other way round: deliberately double-counting non-billable time fails all three reconciliation
+cases by exactly the doubled amount, and turning an unknown rate into `0` fails exactly one.
 
 Deliberately out of scope: parsers, controllers, the Prisma-backed service, and the frontend. High
 cost, low return here — the calculation layer is where a mistake changes a number.
