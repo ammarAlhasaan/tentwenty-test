@@ -7,7 +7,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { HttpExceptionFilter } from './common/http-exception.filter.js';
 import { OriginCheckGuard } from './common/origin-check.guard.js';
 import { envSchema } from './config.js';
-import { DatabaseModule } from './database/database.module.js';
+import { PrismaModule } from './prisma/prisma.module.js';
 import { ImportsModule } from './imports/imports.module.js';
 import { SettingsModule } from './settings/settings.module.js';
 
@@ -18,7 +18,7 @@ import { SettingsModule } from './settings/settings.module.js';
       cache: true,
       validationSchema: envSchema,
     }),
-    DatabaseModule,
+    PrismaModule,
     AuthModule,
     SettingsModule,
     ImportsModule,

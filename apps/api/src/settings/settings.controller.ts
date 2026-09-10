@@ -14,18 +14,18 @@ export class SettingsController {
   }
 
   @Put()
-  update(@Body({ schema: updateSettingsSchema }) body: UpdateSettingsBody) {
-    this.settings.update(body);
+  async update(@Body({ schema: updateSettingsSchema }) body: UpdateSettingsBody) {
+    await this.settings.update(body);
     return this.present();
   }
 
-  private present() {
-    const { billableCategories, monthlyOverhead } = this.settings.read();
+  private async present() {
+    const { billableCategories, monthlyOverhead } = await this.settings.read();
     return {
       billableCategories,
       monthlyOverhead,
       currency: 'AED',
-      knownCategories: this.settings.knownCategories(),
+      knownCategories: await this.settings.knownCategories(),
     };
   }
 }

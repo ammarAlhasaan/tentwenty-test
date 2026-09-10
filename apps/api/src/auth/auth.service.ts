@@ -1,10 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { hash, verify } from '@node-rs/argon2';
-import { DatabaseService } from '../database/database.service.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 export type User = { id: number; email: string };
-type UserRow = { id: number; email: string; password_hash: string };
 
 @Injectable()
 export class AuthService {
@@ -15,21 +14,16 @@ export class AuthService {
   // nobody holds, rather than being a hard-coded string.
   private dummyHash?: Promise<string>;
 
-  constructor(private readonly database: DatabaseService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  findById(id: number): User | null {
-    const row = this.database.db
-      .prepare('SELECT id, email FROM users WHERE id = ?')
-      .get(id) as User | undefined;
-    return row ?? null;
+  findById(id: number): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { id }, select: { id: true, email: true } });
   }
 
   async verifyCredentials(email: string, password: string): Promise<User | null> {
-    const row = this.database.db
-      .prepare('SELECT id, email, password_hash FROM users WHERE email = ?')
-      .get(email) as UserRow | undefined;
+    const row = await this.prisma.user.findUnique({ where: { email } });
 
-    const matches = await this.safeVerify(row?.password_hash ?? (await this.getDummyHash()), password);
+    const matches = await this.safeVerify(row?.passwordHash ?? (await this.getDummyHash()), password);
 
     if (!row || !matches) return null;
     return { id: row.id, email: row.email };
@@ -41,15 +35,20 @@ export class AuthService {
   }
 
   async createUser(email: string, password: string): Promise<void> {
-    const passwordHash = await hash(password);
-    this.database.db
-      .prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)')
-      .run(email, passwordHash);
+    await this.prisma.user.create({
+      data: {
+        // Lowercased here rather than relying on a NOCASE column: the address is
+        // already lowercased on the way in, and one rule in one place is easier
+        // to follow than a collation Prisma cannot express.
+        email: email.toLowerCase(),
+        passwordHash: await hash(password),
+        createdAt: timestamp(),
+      },
+    });
   }
 
-  countUsers(): number {
-    const row = this.database.db.prepare('SELECT COUNT(*) AS n FROM users').get() as { n: number };
-    return row.n;
+  countUsers(): Promise<number> {
+    return this.prisma.user.count();
   }
 
   private async safeVerify(passwordHash: string, password: string): Promise<boolean> {
@@ -61,4 +60,9 @@ export class AuthService {
       return false;
     }
   }
+}
+
+/** SQLite's own `datetime('now')` shape, so old and new rows read alike. */
+function timestamp(): string {
+  return new Date().toISOString().slice(0, 19).replace('T', ' ');
 }

@@ -198,3 +198,22 @@ Implemented 2026-09-10. Differences from the plan above, both found while buildi
 
 `pnpm --filter api lint` and `pnpm --filter api build` exit 0. Verification results:
 [`quickstart.md`](./quickstart.md).
+
+### Migrated to Prisma ORM (after the corrections landed)
+
+Database access moved from handwritten `better-sqlite3` SQL to **Prisma 7.10.0** with the official
+`@prisma/adapter-better-sqlite3` adapter, to make the backend easier to read on a
+frontend-focused assessment. Behaviour and API contracts are unchanged — every endpoint was
+diffed byte-for-byte against its pre-migration response.
+
+| Removed | Replaced by |
+| --- | --- |
+| `src/database/database.service.ts`, `database.module.ts` | `src/prisma/prisma.service.ts`, `prisma.module.ts` |
+| `src/analytics/analytics.repository.ts` (9 raw-SQL methods) | Prisma calls inline in `analytics.service.ts` |
+| Three runtime `CREATE TABLE` blocks in module `onModuleInit` | `prisma/schema.prisma` + `prisma/migrations` |
+| `SqliteSessionStore` | `PrismaSessionStore` |
+| ~25 `prepare(...)` call sites and every `as Row[]` cast | generated Prisma types |
+| `better-sqlite3` + `@types/better-sqlite3` as direct dependencies | the adapter's own dependency |
+
+Structure is unchanged otherwise: the same three feature modules, `cost-model.ts` untouched, no
+new abstraction layer. Details and the version traps are in [`research.md`](./research.md) §11.

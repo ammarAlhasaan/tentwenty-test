@@ -1,10 +1,26 @@
 packages:
   - "apps/*"
 
+# @prisma/adapter-better-sqlite3 asks for better-sqlite3 ^12.6.0, and the 12.x
+# line ships no prebuilt binaries -- installing it runs prebuild-install or
+# falls back to a node-gyp compile. 13.x ships prebuilds for every platform and
+# needs no install script at all, which is what keeps a clean checkout free of a
+# compiler toolchain. The adapter only uses the constructor, prepare, exec,
+# pragma and transaction, all unchanged across that major.
+overrides:
+  better-sqlite3: "^13.0.3"
+
 allowBuilds:
   # Ships prebuilt N-API binaries (prebuilds/darwin-arm64.node) and declares no
   # install/postinstall script, so there is nothing to build. Verified loading on
-  # Node 26.4.0 with no node-gyp invocation.
+  # Node 26.4.0 with no node-gyp invocation. Reaches us through
+  # @prisma/adapter-better-sqlite3.
   better-sqlite3: false
+  # Prisma 7 runs the WASM query compiler through a driver adapter, so no Rust
+  # query engine is downloaded and neither package needs its install script.
+  # Verified: `prisma --version` reports "Query Compiler: enabled", and both
+  # `migrate deploy` and `generate` work with the scripts skipped.
+  prisma: false
+  "@prisma/engines": false
   sharp: false
   unrs-resolver: false

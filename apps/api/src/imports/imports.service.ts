@@ -1,5 +1,5 @@
 import { Injectable, UnprocessableEntityException } from '@nestjs/common';
-import { DatabaseService } from '../database/database.service.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import {
   type ImportIssue,
@@ -31,7 +31,7 @@ export type ImportResult = {
 @Injectable()
 export class ImportsService {
   constructor(
-    private readonly database: DatabaseService,
+    private readonly prisma: PrismaService,
     private readonly settings: SettingsService,
   ) {}
 
@@ -39,42 +39,19 @@ export class ImportsService {
     const parsed = await this.parse(() => parseTimesheet(buffer));
     this.rejectOnIssues(parsed.issues);
 
-    const warnings = [...parsed.warnings, ...this.timesheetWarnings(parsed.rows)];
+    const warnings = [...parsed.warnings, ...(await this.timesheetWarnings(parsed.rows))];
 
-    const importId = this.database.db.transaction(() => {
-      this.upsertEmployees(parsed.rows.map((row) => [row.employeeNo, row.employeeName]));
+    const importId = await this.prisma.$transaction(async (tx) => {
+      await upsertEmployees(tx, parsed.rows);
 
-      const remove = this.database.db.prepare(
-        'DELETE FROM timesheet_entries WHERE year = ? AND month = ?',
-      );
-      for (const period of parsed.periods) remove.run(period.year, period.month);
-
-      const insert = this.database.db.prepare(
-        `INSERT INTO timesheet_entries
-           (year, month, employee_no, employee_name, type_of_expense, department, designation,
-            category, ref_code, task_name, company_name, description, hours)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      );
-      for (const row of parsed.rows) {
-        insert.run(
-          row.year,
-          row.month,
-          row.employeeNo,
-          row.employeeName,
-          row.typeOfExpense,
-          row.department,
-          row.designation,
-          row.category,
-          row.refCode,
-          row.taskName,
-          row.companyName,
-          row.description,
-          row.hours,
-        );
+      for (const period of parsed.periods) {
+        await tx.timesheetEntry.deleteMany({ where: { year: period.year, month: period.month } });
       }
 
-      return this.recordImport('timesheet', filename, userId, parsed.rows.length, parsed.periods, warnings);
-    })();
+      await tx.timesheetEntry.createMany({ data: parsed.rows });
+
+      return recordImport(tx, 'timesheet', filename, userId, parsed.rows.length, parsed.periods, warnings);
+    });
 
     return {
       importId,
@@ -98,23 +75,26 @@ export class ImportsService {
 
     const warnings = parsed.warnings;
 
-    const importId = this.database.db.transaction(() => {
-      this.upsertEmployees(parsed.rows.map((row) => [row.employeeNo, row.employeeName]));
+    const importId = await this.prisma.$transaction(async (tx) => {
+      await upsertEmployees(tx, parsed.rows);
 
       // Scope comes from the month *columns*, not the values, so a column of
       // blanks clears that month instead of leaving stale figures behind.
-      const remove = this.database.db.prepare('DELETE FROM salaries WHERE year = ? AND month = ?');
-      for (const period of parsed.periods) remove.run(period.year, period.month);
-
-      const insert = this.database.db.prepare(
-        'INSERT INTO salaries (employee_no, year, month, amount) VALUES (?, ?, ?, ?)',
-      );
-      for (const row of parsed.rows) {
-        insert.run(row.employeeNo, row.year, row.month, row.amount);
+      for (const period of parsed.periods) {
+        await tx.salary.deleteMany({ where: { year: period.year, month: period.month } });
       }
 
-      return this.recordImport('salaries', filename, userId, parsed.rows.length, parsed.periods, warnings);
-    })();
+      await tx.salary.createMany({
+        data: parsed.rows.map(({ employeeNo, year: y, month, amount }) => ({
+          employeeNo,
+          year: y,
+          month,
+          amount,
+        })),
+      });
+
+      return recordImport(tx, 'salaries', filename, userId, parsed.rows.length, parsed.periods, warnings);
+    });
 
     return {
       importId,
@@ -132,36 +112,19 @@ export class ImportsService {
     this.rejectOnIssues(parsed.issues);
 
     const existing = new Set(
-      (this.database.db.prepare('SELECT ref_code FROM projects').all() as { ref_code: string }[]).map(
-        (row) => row.ref_code,
-      ),
+      (await this.prisma.project.findMany({ select: { refCode: true } })).map((row) => row.refCode),
     );
     const inserted = parsed.rows.filter((row) => !existing.has(row.refCode)).length;
 
-    const importId = this.database.db.transaction(() => {
+    const importId = await this.prisma.$transaction(async (tx) => {
       // Upsert only. A catalogue upload that omits a project is far more likely
       // to be partial than to mean "delete it".
-      const upsert = this.database.db.prepare(
-        `INSERT INTO projects (ref_code, name, price, sales_year, sales_month, category, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(ref_code) DO UPDATE SET
-           name = excluded.name, price = excluded.price, sales_year = excluded.sales_year,
-           sales_month = excluded.sales_month, category = excluded.category, status = excluded.status`,
-      );
       for (const row of parsed.rows) {
-        upsert.run(
-          row.refCode,
-          row.name,
-          row.price,
-          row.salesYear,
-          row.salesMonth,
-          row.category,
-          row.status,
-        );
+        await tx.project.upsert({ where: { refCode: row.refCode }, create: row, update: row });
       }
 
-      return this.recordImport('projects', filename, userId, parsed.rows.length, [], parsed.warnings);
-    })();
+      return recordImport(tx, 'projects', filename, userId, parsed.rows.length, [], parsed.warnings);
+    });
 
     return {
       importId,
@@ -176,35 +139,22 @@ export class ImportsService {
     };
   }
 
-  history() {
-    const rows = this.database.db
-      .prepare(
-        `SELECT i.id, i.kind, i.filename, i.uploaded_at, i.rows_accepted, i.periods, i.warnings,
-                u.email AS uploaded_by
-         FROM imports i LEFT JOIN users u ON u.id = i.uploaded_by
-         ORDER BY i.id DESC`,
-      )
-      .all() as {
-      id: number;
-      kind: ImportKind;
-      filename: string;
-      uploaded_at: string;
-      rows_accepted: number;
-      periods: string;
-      warnings: string;
-      uploaded_by: string | null;
-    }[];
+  async history() {
+    const rows = await this.prisma.import.findMany({
+      orderBy: { id: 'desc' },
+      include: { user: { select: { email: true } } },
+    });
 
     const kinds = new Set(rows.map((row) => row.kind));
 
     return {
       imports: rows.map((row) => ({
         id: row.id,
-        kind: row.kind,
+        kind: row.kind as ImportKind,
         filename: row.filename,
-        uploadedAt: row.uploaded_at,
-        uploadedBy: row.uploaded_by,
-        rowsAccepted: row.rows_accepted,
+        uploadedAt: row.uploadedAt,
+        uploadedBy: row.user?.email ?? null,
+        rowsAccepted: row.rowsAccepted,
         periodsReplaced: JSON.parse(row.periods) as Period[],
         warningCount: (JSON.parse(row.warnings) as ImportWarning[]).length,
       })),
@@ -240,50 +190,12 @@ export class ImportsService {
     ]);
   }
 
-  private upsertEmployees(pairs: [string, string][]): void {
-    const upsert = this.database.db.prepare(
-      'INSERT INTO employees (employee_no, name) VALUES (?, ?) ON CONFLICT(employee_no) DO UPDATE SET name = excluded.name',
-    );
-    const seen = new Set<string>();
-    for (const [employeeNo, name] of pairs) {
-      if (seen.has(employeeNo)) continue;
-      seen.add(employeeNo);
-      upsert.run(employeeNo, name);
-    }
-  }
-
-  private recordImport(
-    kind: ImportKind,
-    filename: string,
-    userId: number,
-    rowsAccepted: number,
-    periods: Period[],
-    warnings: ImportWarning[],
-  ): number {
-    const result = this.database.db
-      .prepare(
-        `INSERT INTO imports (kind, filename, uploaded_at, uploaded_by, rows_accepted, periods, warnings)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        kind,
-        filename,
-        new Date().toISOString(),
-        userId,
-        rowsAccepted,
-        JSON.stringify(periods.map(labelled)),
-        JSON.stringify(warnings),
-      );
-    return Number(result.lastInsertRowid);
-  }
-
   /** Unpriced billable ref codes, judged against the current billable categories. */
-  private timesheetWarnings(rows: TimesheetRow[]): ImportWarning[] {
-    const billable = new Set(this.settings.read().billableCategories.map((c) => c.toLowerCase()));
+  private async timesheetWarnings(rows: TimesheetRow[]): Promise<ImportWarning[]> {
+    const { billableCategories } = await this.settings.read();
+    const billable = new Set(billableCategories.map((c) => c.toLowerCase()));
     const priced = new Set(
-      (this.database.db.prepare('SELECT ref_code FROM projects').all() as { ref_code: string }[]).map(
-        (row) => row.ref_code,
-      ),
+      (await this.prisma.project.findMany({ select: { refCode: true } })).map((row) => row.refCode),
     );
 
     const unpriced = new Map<string, number>();
@@ -298,7 +210,43 @@ export class ImportsService {
       context: { refCode, hours },
     }));
   }
+}
 
+/** The transaction-scoped client Prisma hands to `$transaction`. */
+type Tx = Parameters<Parameters<PrismaService['$transaction']>[0]>[0];
+
+async function upsertEmployees(
+  tx: Tx,
+  rows: { employeeNo: string; employeeName: string }[],
+): Promise<void> {
+  const names = new Map(rows.map((row) => [row.employeeNo, row.employeeName]));
+  for (const [employeeNo, name] of names) {
+    await tx.employee.upsert({ where: { employeeNo }, create: { employeeNo, name }, update: { name } });
+  }
+}
+
+async function recordImport(
+  tx: Tx,
+  kind: ImportKind,
+  filename: string,
+  userId: number,
+  rowsAccepted: number,
+  periods: Period[],
+  warnings: ImportWarning[],
+): Promise<number> {
+  const row = await tx.import.create({
+    data: {
+      kind,
+      filename,
+      uploadedAt: new Date().toISOString(),
+      uploadedBy: userId,
+      rowsAccepted,
+      periods: JSON.stringify(periods.map(labelled)),
+      warnings: JSON.stringify(warnings),
+    },
+    select: { id: true },
+  });
+  return row.id;
 }
 
 function labelled(period: Period) {

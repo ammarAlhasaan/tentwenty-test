@@ -1,16 +1,40 @@
 # BE-03 Data Model
 
-SQLite, through the existing `DatabaseService`. Six new tables. `users` and `sessions` (BE-02) are
-untouched, so an existing development database keeps its demo user and live sessions — **upgrading
-does not require deleting the database file**.
+SQLite, through **Prisma ORM 7.10.0** and the official `@prisma/adapter-better-sqlite3` driver
+adapter. Six new tables alongside BE-02's `users` and `sessions`, so an existing development
+database keeps its demo user and live sessions — **upgrading does not require deleting the
+database file**.
 
-Each table is created with `CREATE TABLE IF NOT EXISTS` in the `onModuleInit` of the module that
-owns it, following the pattern `AuthModule` established.
+> **Migrated to Prisma after BE-03 shipped.** The tables below are unchanged; what changed is how
+> they are declared and queried. [`apps/api/prisma/schema.prisma`](../../apps/api/prisma/schema.prisma)
+> is now the single description of the schema, every model maps onto the same snake_case columns
+> with `@map`/`@@map`, and there is no `CREATE TABLE` at runtime any more — migrations in
+> `apps/api/prisma/migrations` are applied by `pnpm --filter api db:deploy` before the API starts.
+> The SQL in this document is what those migrations produce; it is kept because it remains the
+> clearest statement of the shape and the constraints.
+
+## Applying the schema
+
+| Situation | Commands |
+| --- | --- |
+| Fresh database | `pnpm --filter api db:deploy` |
+| Database created before Prisma | `pnpm --filter api db:adopt` then `pnpm --filter api db:deploy` |
+
+`db:adopt` is `prisma migrate resolve --applied 0_init` — Prisma's documented baselining step. It
+records that the pre-Prisma schema is already present without re-running it; `db:deploy` then
+applies `1_align_with_prisma_schema`, which rebuilds five tables in place with `INSERT..SELECT`
+because SQLite declares a non-INTEGER `PRIMARY KEY` nullable and `users.email` carried a
+`COLLATE NOCASE` that Prisma cannot express. No data is lost and nothing is recreated from empty.
+After either path `prisma migrate diff` reports **no difference**.
 
 ## Ownership
 
+Modules no longer create their own tables; ownership below is about which feature reads and
+writes them.
+
 | Module | Tables |
 | --- | --- |
+| `AuthModule` | `users`, `sessions` |
 | `ImportsModule` | `employees`, `salaries`, `projects`, `timesheet_entries`, `imports` |
 | `SettingsModule` | `settings` |
 
@@ -23,7 +47,11 @@ owns it, following the pattern `AuthModule` established.
 - **Periods** are stored as two integers, `year` and `month` (1–12) — never as a formatted string.
   Every filter, sort and range query is then a plain integer comparison.
 - **Employee numbers** are `TEXT`. `00101` is not `101`.
-- **Timestamps** are ISO-8601 text, matching BE-02's `created_at`.
+- **Timestamps** are ISO-8601 text, matching BE-02's `created_at`. `users.created_at` is written
+  by the application rather than by a SQL default: a function default cannot round-trip through
+  SQLite introspection, so Prisma would report permanent drift against it.
+- **`sessions.expires_at`** is milliseconds since the epoch, modelled as `BigInt` — the value
+  exceeds Prisma's 32-bit `Int`, and the column stays `INTEGER` so existing rows read unchanged.
 
 ---
 
@@ -229,7 +257,8 @@ deletion, and nothing in the assessment requires removing a project.
 
 ## Transaction boundaries
 
-One `better-sqlite3` transaction per upload, wrapping, in order:
+One Prisma interactive transaction (`prisma.$transaction(async (tx) => ...)`) per upload,
+wrapping, in order:
 
 1. upsert `employees`
 2. delete the affected periods
@@ -240,28 +269,26 @@ Parsing and validation complete **before** the transaction opens. If any row fai
 nothing is written, no `imports` row appears, and the response is a 422 listing the failures —
 so a failed import is indistinguishable from an import that never happened (FR-012).
 
-`better-sqlite3` transactions are synchronous and roll back on any throw, so a mid-insert failure
-(a disk error, a constraint violation) leaves the database exactly as it was.
+Prisma rolls the transaction back on any throw, so a mid-insert failure (a disk error, a
+constraint violation) leaves the database exactly as it was. Rows are inserted with `createMany`
+rather than one statement per row. (`createMany`'s `skipDuplicates` is not supported on SQLite;
+where insert-if-absent is needed — seeding settings — an `upsert` with an empty `update` does the
+same job.)
 
 ## What the cost model reads
 
-Per request, three flat reads for the requested period, then everything is computed in memory:
+Per request, four reads issued together with `Promise.all`, then everything is computed in memory:
 
-```sql
-SELECT ... FROM timesheet_entries WHERE year = ? AND (?2 IS NULL OR month = ?2);
-SELECT ... FROM salaries          WHERE year = ? AND (?2 IS NULL OR month = ?2);
-SELECT ... FROM projects;
+```ts
+this.prisma.timesheetEntry.findMany({ where: period })
+this.prisma.salary.findMany({ where: period })
+this.prisma.project.findMany()
+this.prisma.timesheetEntry.groupBy({ by: ['refCode'], _sum: { hours: true } })  // lifetime denominator
 ```
 
-Plus one aggregate that is deliberately **not** period-filtered — the lifetime denominator for
-revenue allocation (spec `A-002`, `research.md` §3):
-
-```sql
-SELECT ref_code, SUM(hours) AS lifetime_hours FROM timesheet_entries GROUP BY ref_code;
-```
-
-Narrowing this one by the requested period would credit every period with the project's entire
-price, so it is read separately and used by every endpoint that allocates revenue.
+The fourth is deliberately **not** period-filtered: it is the lifetime denominator for revenue
+allocation (spec `A-002`, `research.md` §3). Narrowing it by the requested period would credit
+every period with the project's entire price.
 
 No per-row query, no N+1. The cost model needs whole-month aggregates — total logged hours per
 person, total billable hours — before it can value any individual row, so the batch read is not an

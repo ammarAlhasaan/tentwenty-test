@@ -423,6 +423,52 @@ Re-run after the three corrections, with the sample data restored:
 Every figure matches the pre-correction run exactly. The corrections change behaviour only where
 an input is missing.
 
+## Q22 — Prisma migration: behaviour unchanged · PASS
+
+Re-verified after database access moved to Prisma 7.10.0 (`research.md` §11). Run on 2026-09-10
+against copies on ports 4151/4152; the working database was never touched.
+
+**Static:** `pnpm --filter api lint` exit 0 · `tsc --noEmit` exit 0 · `pnpm --filter api build`
+exit 0.
+
+**Schema migration**
+
+| Check | Observed |
+| --- | --- |
+| Fresh database, `prisma migrate deploy` | `0_init` and `1_align_with_prisma_schema` applied; `migrate diff` → **No difference detected** |
+| Populated pre-Prisma database, `migrate resolve --applied 0_init` + `migrate deploy` | `1` applied; `migrate diff` → **No difference detected**; `migrate status` → *Database schema is up to date* |
+| Row counts and values after adopting | **identical** to the pre-migration dump — employees 12, imports 3, projects 11, salaries 144, sessions 1, settings 2, timesheet_entries 562, users 1; `SUM(hours)` 19,815.2; `SUM(amount)` 2,400,000; the user row and both settings rows unchanged |
+
+**Responses, diffed byte-for-byte against pre-migration output** (same database, overhead 1500):
+`/dashboard?year=2025`, `/dashboard?year=2025&month=3`, `/projects?year=2025&month=3`,
+`/projects/Q2025001a`, `/departments?year=2025`, `/productivity?year=2025`,
+`/categories?year=2025`, `/periods`, `/settings`, `/imports` — **all IDENTICAL**.
+
+**Behaviour**
+
+| Check | Observed |
+| --- | --- |
+| Session written *before* the migration | `/auth/me` → **200** — the `BigInt` expiry reads pre-existing `INTEGER` rows |
+| Login / logout / post-logout | `200` · `204` · `401`; `/health` `200` throughout |
+| Deleted-user rejection | user row deleted while its session row remained → `/auth/me` and `/dashboard` both `401` |
+| Corrected-month upload | `periodsReplaced: ["March 2025"]`, March moved +10, other eleven months unchanged |
+| Invalid imports | not-a-workbook and bad-rows both `422`; figures unchanged; import history stayed at 4 |
+| Full sample import | dashboard **identical** to the reviewed baseline |
+| Fresh database, sample import, overhead 0 | hours 19,815.2 · billable 15,265.6 · productivity 0.7704 · cost **2,400,000** · allocated revenue 5,012,000 · margin 0.5211 · every month `difference` 0 |
+| Project invariants | `Q2025001a` cost 468,776.21, profitability 0.1629, employee costs sum to 468,776.21, revenue shares sum to 560,000.01 |
+| Missing salary (Ayesha, March) | `billableHours` **1,230.7** (full denominator), `billableHoursUncosted` 139.7, `uncostedIndirectCost` 8,699.15, `difference` 0, `balances` true, `salariesComplete` false, profit/margin `null` |
+| Scoped suppression | `Q2025009b`: March `costComplete: false`; April–July `costComplete: true` with real costs; Rohit Menon (salary known) `profitability: null` |
+| Unpriced project | `Q2025099z` listed with `priced: false`, name from the task column, detail `200`; internal categories still excluded (January → `["Q2025001a"]`) |
+| Restart | figures and settings (overhead 1500) preserved |
+
+**Cleanup search after migration**
+
+| Command | Result |
+| --- | --- |
+| `grep -rn "DatabaseService\|better-sqlite3\|\.prepare(\|CREATE TABLE" apps/api/src` (excluding generated) | no matches |
+| `src/database/`, `analytics.repository.ts`, `sqlite-session.store.ts` | removed |
+| Raw SQL remaining | two `PRAGMA` statements in `PrismaService.onModuleInit`, explained in place |
+
 # Coverage audit
 
 ## Assessment requirements

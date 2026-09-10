@@ -381,3 +381,94 @@ public — which is exactly why BE-02 did not register it globally.
 | A generic `POST /imports?kind=` | Three explicit routes make the contract, the validation and the frontend's three upload targets obvious |
 | A separate `GET /departments/:name` drill-down | Six departments and twelve people. Nesting the employees inside `GET /departments` removes an endpoint and a round trip |
 | Swagger/OpenAPI | Excluded by the spec; Markdown contracts are published in `contracts/` |
+
+
+---
+
+## 11. Prisma ORM 7.10.0 — the migration off handwritten SQL
+
+Added after BE-03 shipped, to cut repetitive SQL out of the backend. Every fact below was checked
+against the **installed** package (its `prisma init` template, CLI help, `.d.ts` files and real
+migration runs) rather than documentation pages, because v7 is recent and several published pages
+now redirect to v8.
+
+### Version choice — `latest` is a release candidate
+
+```
+npm view prisma dist-tags        -> latest: 8.0.0-rc.13   prev: 7.10.0
+npm view @prisma/client dist-tags-> latest: 7.10.0
+```
+
+`prisma@latest` currently resolves to **8.0.0-rc.13**, a release candidate. Installing "the latest
+stable" therefore means pinning explicitly: **`prisma@7.10.0` and `@prisma/client@7.10.0`**, the
+matching stable pair. `prisma generate` prints an upgrade nag to 8.0.0-rc.13; it is correctly
+ignored.
+
+`engines.node` for 7.10.0 is `^20.19 || ^22.12 || >=24.0` — satisfied by the pinned Node 24.21.0
+and by the Node 26.4.0 used here.
+
+### What changed in v7 and cost time
+
+| v6 habit | v7 reality |
+| --- | --- |
+| `generator client { provider = "prisma-client-js" }` | `provider = "prisma-client"`, and `output` is **required** |
+| Client generated into `node_modules/.prisma` | Generated **TypeScript** into your source tree, compiled by your own tsconfig |
+| `url = env("DATABASE_URL")` in the schema's `datasource` | `datasource` holds only `provider`; the URL moves to a config file |
+| `prisma.config.ts` | **`prisma7.config.ts`** — the filename is version-stamped |
+| `migrate diff --to-schema-datamodel <path>` | `migrate diff --to-schema <path>`; `--from-url` becomes `--from-config-datasource` |
+
+The generator is set to `moduleFormat = "esm"` so the emitted code carries `.js` specifiers, which
+is what this project's `"type": "module"` + `moduleResolution: nodenext` needs. Output goes to
+`src/generated/prisma` (inside `rootDir`, so `nest build` compiles it) and is gitignored;
+`postinstall` and `build` both run `prisma generate`.
+
+### Driver adapter: required, and it brings better-sqlite3 back
+
+Prisma 7 has no Rust query engine — `prisma --version` reports `Query Compiler: enabled`, and
+SQLite access goes through a driver adapter. The only two official SQLite adapters are
+`@prisma/adapter-better-sqlite3` and `@prisma/adapter-libsql`; there is no `node:sqlite` adapter.
+The better-sqlite3 one is right for a plain local file, so `better-sqlite3` stays in the tree —
+but as the **adapter's own dependency**, not something `apps/api` declares.
+
+That adapter asks for `better-sqlite3@^12.6.0`, and **12.x ships no prebuilt binaries**: its
+install script is `prebuild-install || node-gyp rebuild`. With this repository's `allowBuilds`
+policy the script is skipped and the native module fails to load at runtime — the first start
+crashed with a `bindings` error listing thirteen paths it tried. 13.x ships prebuilds for every
+platform and needs no install script, which is why BE-01 chose it. A pnpm `overrides` entry pins
+`better-sqlite3: ^13.0.3`; the adapter only uses the constructor, `prepare`, `exec`, `pragma` and
+`transaction`, all unchanged across that major, and the whole verification suite passes on it.
+
+### Two schema details SQLite forces
+
+- **`sessions.expires_at`** holds `Date.now()` — about `1.78e12`, past Prisma's 32-bit `Int`. It is
+  modelled `BigInt`; the column stays `INTEGER` (SQLite gives `BIGINT` integer affinity), so
+  pre-existing rows read unchanged. Verified: a session cookie written **before** the migration
+  still authenticates afterwards.
+- **`users.created_at`** was `DEFAULT (datetime('now'))`. SQLite introspection cannot tell a
+  function default from a string default — `db pull` returns `@default("datetime('now')")` — so
+  `@default(dbgenerated(...))` never converges and `migrate diff` reports drift forever. The
+  default is dropped and the value written by `AuthService.createUser`, in SQLite's own
+  `YYYY-MM-DD HH:MM:SS` shape so old and new rows match. `created_at` is never read by an endpoint.
+
+`COLLATE NOCASE` on `users.email` is likewise inexpressible in Prisma. Rather than keep a
+collation the schema cannot describe, the address is lowercased in `createUser` — it was already
+lowercased on the way in by the Zod login schema, so one rule in one place replaces it.
+
+### Baselining an existing database
+
+Prisma's documented existing-project workflow, using two migrations so both paths converge:
+
+- `0_init` — the schema BE-03 created at runtime. An existing database already matches it.
+- `1_align_with_prisma_schema` — generated with
+  `migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` against a
+  database holding only the baseline. It rebuilds five tables with `INSERT..SELECT`, because
+  SQLite declares a non-INTEGER `PRIMARY KEY` nullable and the baseline's `email` column carried
+  `COLLATE NOCASE`.
+
+| Path | Commands | Result |
+| --- | --- | --- |
+| Fresh | `prisma migrate deploy` | both applied, `migrate diff` → *No difference detected* |
+| Existing | `prisma migrate resolve --applied 0_init` then `prisma migrate deploy` | `1` applied, *No difference detected*, all row counts and values identical |
+
+Nothing is reset, deleted or recreated. Verified on a copy of a populated database, never on the
+working one.

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { type ImportWarning, monthLabel, periodLabel } from '../imports/parse-workbook.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 import { SettingsService } from '../settings/settings.service.js';
-import { AnalyticsRepository } from './analytics.repository.js';
 import {
   type Assumptions,
   type Entry,
@@ -42,12 +42,12 @@ type Context = {
 @Injectable()
 export class AnalyticsService {
   constructor(
-    private readonly repository: AnalyticsRepository,
+    private readonly prisma: PrismaService,
     private readonly settings: SettingsService,
   ) {}
 
-  periods() {
-    const rows = this.repository.availablePeriods();
+  async periods() {
+    const rows = await this.availablePeriods();
     const years = new Map<number, { month: number; label: string; hasTimesheet: boolean; hasSalaries: boolean }[]>();
 
     for (const row of rows) {
@@ -55,8 +55,8 @@ export class AnalyticsService {
       list.push({
         month: row.month,
         label: monthLabel(row.year, row.month),
-        hasTimesheet: row.hasTimesheet === 1,
-        hasSalaries: row.hasSalaries === 1,
+        hasTimesheet: row.hasTimesheet,
+        hasSalaries: row.hasSalaries,
       });
       years.set(row.year, list);
     }
@@ -68,12 +68,15 @@ export class AnalyticsService {
       years: available,
       defaultYear,
       hasData: available.length > 0,
-      warnings: defaultYear === null ? [] : this.load({ year: defaultYear, month: null }).completeness.issues,
+      warnings:
+        defaultYear === null
+          ? []
+          : (await this.load({ year: defaultYear, month: null })).completeness.issues,
     };
   }
 
-  dashboard(scope: Scope) {
-    const context = this.load(scope);
+  async dashboard(scope: Scope) {
+    const context = await this.load(scope);
     const totals = this.totalsFor(context, context.entries);
     const reconciliation = this.reconcile(context);
 
@@ -102,8 +105,8 @@ export class AnalyticsService {
     };
   }
 
-  projectList(scope: Scope) {
-    const context = this.load(scope);
+  async projectList(scope: Scope) {
+    const context = await this.load(scope);
     const byRef = new Map<string, Entry[]>();
     for (const entry of context.entries) {
       byRef.set(entry.refCode, [...(byRef.get(entry.refCode) ?? []), entry]);
@@ -170,9 +173,9 @@ export class AnalyticsService {
    * Never period-filtered: a price only means something against all of the
    * project's hours (spec A-002). The monthly split lives inside the response.
    */
-  projectDetail(refCode: string) {
-    const project = this.repository.projects().find((p) => p.refCode === refCode) ?? null;
-    const rows = this.repository.entriesForRefCode(refCode);
+  async projectDetail(refCode: string) {
+    const project = await this.prisma.project.findUnique({ where: { refCode } });
+    const rows = await this.prisma.timesheetEntry.findMany({ where: { refCode } });
     if (!project && rows.length === 0) throw new NotFoundException(`No project ${refCode}`);
 
     const months = [...new Set(rows.map((r) => monthKey(r.year, r.month)))].map((key) => {
@@ -180,12 +183,13 @@ export class AnalyticsService {
       return { year: Number(year), month: Number(month) };
     });
 
-    const assumptions = this.settings.read();
-    const models = buildMonthModels(
-      this.repository.entriesForMonths(months),
-      this.repository.salariesForMonths(months),
-      assumptions,
-    );
+    const assumptions = await this.settings.read();
+    const monthFilter = { OR: months.map((m) => ({ year: m.year, month: m.month })) };
+    const [monthEntries, monthSalaries] = await Promise.all([
+      this.prisma.timesheetEntry.findMany({ where: monthFilter }),
+      this.prisma.salary.findMany({ where: monthFilter }),
+    ]);
+    const models = buildMonthModels(monthEntries, monthSalaries, assumptions);
 
     const lifetimeHours = rows.reduce((sum, r) => sum + r.hours, 0);
     const price = project?.price ?? null;
@@ -301,8 +305,8 @@ export class AnalyticsService {
     };
   }
 
-  departments(scope: Scope) {
-    const context = this.load(scope);
+  async departments(scope: Scope) {
+    const context = await this.load(scope);
 
     const departments = groupBy(context.entries, (e) => e.department).map(([department, group]) => {
       const totals = this.totalsFor(context, group);
@@ -350,8 +354,8 @@ export class AnalyticsService {
     };
   }
 
-  productivity(scope: Scope) {
-    const context = this.load(scope);
+  async productivity(scope: Scope) {
+    const context = await this.load(scope);
     const totals = this.totalsFor(context, context.entries);
 
     const employees = groupBy(context.entries, (e) => e.employeeNo).map(([employeeNo, rows]) => {
@@ -383,8 +387,8 @@ export class AnalyticsService {
     };
   }
 
-  categories(scope: Scope) {
-    const context = this.load(scope);
+  async categories(scope: Scope) {
+    const context = await this.load(scope);
     const totalHours = sum(context.entries, (e) => e.hours);
 
     const categories = groupBy(context.entries, (e) => e.category).map(([category, rows]) => {
@@ -427,13 +431,49 @@ export class AnalyticsService {
 
   // ---- internals -------------------------------------------------------
 
-  private load(scope: Scope): Context {
-    const assumptions = this.settings.read();
-    const entries = this.repository.entries(scope.year, scope.month);
-    const salaries = this.repository.salaries(scope.year, scope.month);
-    const projects = new Map(this.repository.projects().map((p) => [p.refCode, p]));
+  /** Which (year, month) pairs hold data, and which kind. */
+  private async availablePeriods() {
+    const [timesheet, salaries] = await Promise.all([
+      this.prisma.timesheetEntry.groupBy({ by: ['year', 'month'] }),
+      this.prisma.salary.groupBy({ by: ['year', 'month'] }),
+    ]);
+
+    const periods = new Map<string, { year: number; month: number; hasTimesheet: boolean; hasSalaries: boolean }>();
+    const mark = (rows: { year: number; month: number }[], key: 'hasTimesheet' | 'hasSalaries') => {
+      for (const row of rows) {
+        const id = `${row.year}-${row.month}`;
+        const entry = periods.get(id) ?? {
+          year: row.year,
+          month: row.month,
+          hasTimesheet: false,
+          hasSalaries: false,
+        };
+        entry[key] = true;
+        periods.set(id, entry);
+      }
+    };
+    mark(timesheet, 'hasTimesheet');
+    mark(salaries, 'hasSalaries');
+
+    return [...periods.values()].sort((a, b) => a.year - b.year || a.month - b.month);
+  }
+
+  private async load(scope: Scope): Promise<Context> {
+    const period = { year: scope.year, ...(scope.month === null ? {} : { month: scope.month }) };
+
+    const [assumptions, entries, salaries, projectRows, lifetime] = await Promise.all([
+      this.settings.read(),
+      this.prisma.timesheetEntry.findMany({ where: period }),
+      this.prisma.salary.findMany({ where: period }),
+      this.prisma.project.findMany(),
+      // Deliberately NOT filtered by period: this is the denominator for revenue
+      // allocation, and narrowing it would credit each period with the whole price.
+      this.prisma.timesheetEntry.groupBy({ by: ['refCode'], _sum: { hours: true } }),
+    ]);
+
+    const projects = new Map(projectRows.map((p) => [p.refCode, p]));
     const models = buildMonthModels(entries, salaries, assumptions);
-    const lifetimeHours = this.repository.lifetimeHoursByRefCode();
+    const lifetimeHours = new Map(lifetime.map((row) => [row.refCode, row._sum.hours ?? 0]));
 
     const issues: ImportWarning[] = [];
     let costComplete = true;
