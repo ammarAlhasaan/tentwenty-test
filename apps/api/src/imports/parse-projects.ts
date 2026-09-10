@@ -12,7 +12,7 @@ import {
   spreadsheetRow,
 } from './parse-workbook.js';
 
-export type ProjectRow = {
+type ProjectRow = {
   refCode: string;
   name: string;
   price: number | null;
@@ -22,7 +22,7 @@ export type ProjectRow = {
   status: string | null;
 };
 
-export type ProjectParseResult = {
+type ProjectParseResult = {
   rows: ProjectRow[];
   warnings: ImportWarning[];
   issues: ImportIssue[];

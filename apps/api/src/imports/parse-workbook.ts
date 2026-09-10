@@ -33,7 +33,7 @@ const MONTH_NAMES = [
   'december',
 ];
 
-export const MONTH_LABELS = MONTH_NAMES.map((name) => name[0].toUpperCase() + name.slice(1));
+const MONTH_LABELS = MONTH_NAMES.map((name) => name[0].toUpperCase() + name.slice(1));
 
 export function monthLabel(year: number, month: number): string {
   return `${MONTH_LABELS[month - 1]} ${year}`;
@@ -66,7 +66,7 @@ function normaliseHeader(value: CellValue): string {
     .replace(/[^a-z0-9]/g, '');
 }
 
-export type HeaderMatch = { rowIndex: number; columns: Map<string, number> };
+type HeaderMatch = { rowIndex: number; columns: Map<string, number> };
 
 const HEADER_SEARCH_ROWS = 10;
 

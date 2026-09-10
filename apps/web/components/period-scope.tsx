@@ -11,7 +11,12 @@ import { Button } from "@/components/ui/button";
 import { useMe } from "@/lib/auth";
 import { isApiError } from "@/lib/api";
 import { useLoadSampleData } from "@/lib/imports";
-import { usePeriods, type PeriodSelection, type PeriodsResponse } from "@/lib/analytics";
+import {
+  periodQuery,
+  usePeriods,
+  type PeriodSelection,
+  type PeriodsResponse,
+} from "@/lib/analytics";
 
 function coveredMonths(
   periods: PeriodsResponse,
@@ -72,9 +77,7 @@ export function usePeriodScope() {
         };
 
   function go(next: PeriodSelection) {
-    const query = new URLSearchParams({ year: String(next.year) });
-    if (next.month !== null) query.set("month", String(next.month));
-    router.replace(`${pathname}?${query}`, { scroll: false });
+    router.replace(`${pathname}?${periodQuery(next)}`, { scroll: false });
   }
 
   function selectPeriod(next: PeriodSelection) {

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { isBillable } from '../analytics/cost-model.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   DEFAULT_BILLABLE_CATEGORIES,
@@ -33,8 +34,7 @@ export class SettingsService {
 
   /** Every category present in the loaded timesheet, so the UI can offer real choices. */
   async knownCategories(): Promise<{ category: string; billable: boolean; hours: number }[]> {
-    const { billableCategories } = await this.read();
-    const billable = new Set(billableCategories.map((name) => name.toLowerCase()));
+    const settings = await this.read();
 
     const rows = await this.prisma.timesheetEntry.groupBy({
       by: ['category'],
@@ -44,7 +44,7 @@ export class SettingsService {
 
     return rows.map((row) => ({
       category: row.category,
-      billable: billable.has(row.category.toLowerCase()),
+      billable: isBillable(row.category, settings),
       hours: row._sum.hours ?? 0,
     }));
   }

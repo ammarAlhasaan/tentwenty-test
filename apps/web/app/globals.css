@@ -1,6 +1,4 @@
 @import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -10,19 +8,6 @@
   --font-sans: var(--font-dm-sans);
   --font-mono: var(--font-dm-mono);
   --font-heading: var(--font-dm-sans);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
   --color-brand: var(--brand);
   --color-brand-strong: var(--brand-strong);
   --color-brand-soft: var(--brand-soft);
@@ -45,25 +30,15 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 /* Design tokens adapted from the approved design bundle (DM Sans/DM Mono, indigo
@@ -75,8 +50,6 @@
   --foreground: #14142b;
   --card: #ffffff;
   --card-foreground: #14142b;
-  --popover: #ffffff;
-  --popover-foreground: #14142b;
 
   /* Brand indigo. White on --brand is 5.98:1, so the banner and primary button
      carry body-sized text safely. */
@@ -89,12 +62,7 @@
 
   --primary: #4a48f3;
   --primary-foreground: #ffffff;
-  --secondary: #eeedff;
-  --secondary-foreground: #2e2cc9;
   --muted: #f2f2fb;
-  --muted-foreground: #5b5c78; /* 6.06:1 on --background */
-  --accent: #eeedff;
-  --accent-foreground: #2e2cc9;
 
   /* Secondary ink. The design's #9b9cb8 measures 2.51:1 and is used there for
      11.5px labels; darkened to clear AA at that size. */
@@ -120,26 +88,12 @@
   --input: #e8e7f6;
   --ring: #4a48f3;
 
-  --chart-1: #4a48f3;
-  --chart-2: #7d7bf8;
-  --chart-3: #dedcfe;
-  --chart-4: #087a5d;
-  --chart-5: #955c06;
-
   --radius: 0.75rem;
   --elevation-card: 0 1px 2px rgba(24, 44, 110, 0.04),
     0 14px 34px -22px rgba(24, 44, 110, 0.28);
   --elevation-lift: 0 2px 6px rgba(24, 44, 110, 0.06),
     0 22px 48px -24px rgba(24, 44, 110, 0.35);
 
-  --sidebar: #ffffff;
-  --sidebar-foreground: #14142b;
-  --sidebar-primary: #4a48f3;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eeedff;
-  --sidebar-accent-foreground: #2e2cc9;
-  --sidebar-border: #e8e7f6;
-  --sidebar-ring: #4a48f3;
 }
 
 /* The design bundle supplies light values only. These keep a dark-preferring
@@ -149,8 +103,6 @@
   --foreground: #f2f2fa;
   --card: #191933;
   --card-foreground: #f2f2fa;
-  --popover: #191933;
-  --popover-foreground: #f2f2fa;
 
   --brand: #7d7bf8;
   --brand-strong: #4a48f3;
@@ -161,12 +113,7 @@
 
   --primary: #7d7bf8;
   --primary-foreground: #0d0d1e;
-  --secondary: #23234a;
-  --secondary-foreground: #dedcfe;
   --muted: #22224a;
-  --muted-foreground: #a9aacb;
-  --accent: #23234a;
-  --accent-foreground: #dedcfe;
 
   --ink-2: #a9aacb;
   --ink-3: #8a8bb0;
@@ -187,20 +134,6 @@
   --input: oklch(1 0 0 / 16%);
   --ring: #7d7bf8;
 
-  --chart-1: #7d7bf8;
-  --chart-2: #4a48f3;
-  --chart-3: #32326a;
-  --chart-4: #3fc7a1;
-  --chart-5: #e0a44a;
-
-  --sidebar: #191933;
-  --sidebar-foreground: #f2f2fa;
-  --sidebar-primary: #7d7bf8;
-  --sidebar-primary-foreground: #0d0d1e;
-  --sidebar-accent: #23234a;
-  --sidebar-accent-foreground: #dedcfe;
-  --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: #7d7bf8;
 }
 
 @layer base {

@@ -15,8 +15,8 @@ Two independent applications in one repository:
 ## Frontend state
 
 - React Query owns all API data.
-- Zustand is only for shared UI state.
-- Never duplicate API data in Zustand.
+- Shared UI state uses React state. No store library is installed.
+- If a store is ever introduced, it holds UI state only and never duplicates API data.
 
 ## Working style
 

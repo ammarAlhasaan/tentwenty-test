@@ -1,3 +1,4 @@
+import { monthKey } from '../analytics/cost-model.js';
 import {
   type CellValue,
   type ImportIssue,
@@ -30,7 +31,7 @@ export type TimesheetRow = {
   hours: number;
 };
 
-export type TimesheetParseResult = {
+type TimesheetParseResult = {
   rows: TimesheetRow[];
   periods: Period[];
   warnings: ImportWarning[];
@@ -144,7 +145,7 @@ export async function parseTimesheet(buffer: Buffer): Promise<TimesheetParseResu
       hours,
     });
 
-    periods.set(`${period.year}-${period.month}`, period);
+    periods.set(monthKey(period.year, period.month), period);
   }
 
   return {

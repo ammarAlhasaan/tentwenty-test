@@ -42,15 +42,13 @@ function TablePanel({
  */
 function TableScroller({
   minWidth = 560,
-  className,
   children,
 }: {
   minWidth?: number;
-  className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn("w-full overflow-x-auto", className)}>
+    <div className="w-full overflow-x-auto">
       <table
         className="w-full border-collapse text-sm"
         style={{ minWidth }}
