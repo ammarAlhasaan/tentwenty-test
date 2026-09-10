@@ -3,11 +3,12 @@
 The work was scoped to the stated **8–12 hour budget**, and I kept to it. That budget shaped what
 went in and what didn't — below is the honest list rather than a silent gap.
 
-## In progress
+## Done since
 
-**Unit tests for the cost model.** Planned in [`specs/009-cost-model-tests/`](specs/009-cost-model-tests)
-and landing shortly: nine cases on the calculation layer, run with Vitest. Covered in more detail in
-the [README](README.md#tests). I focused them on the arithmetic that actually carries risk — the
+**Unit tests for the cost model.** Nine cases on the calculation layer, run with Vitest
+(`cd apps/api && pnpm test`). Specified in
+[`specs/009-cost-model-tests/`](specs/009-cost-model-tests) and covered in more detail in the
+[README](README.md#tests). I focused them on the arithmetic that actually carries risk — the
 reconciliation self-check, the rate formulas, and the missing-data behaviour.
 
 ## Next, in the order I'd do it
